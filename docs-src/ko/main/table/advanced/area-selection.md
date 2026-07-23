@@ -1,4 +1,4 @@
-# 영역 선택 <Badge type="tip" text="^0.10.0" /> <Badge type="warning" text="등록 필요" /> 
+# 영역 선택 <Badge type="warning" text="등록 필요" /> 
 `props.areaSelection`를 통해 테이블의 셀 드래그 선택 영역을 활성화합니다.
 - 클립보드에 복사 지원 (Ctrl/Cmd + C).
 - Esc로 선택 영역 취소

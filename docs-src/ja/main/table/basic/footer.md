@@ -1,4 +1,4 @@
-# フッター集計行 <Badge type="tip" text="^0.11.0" />
+# フッター集計行
 
 * `props.footerData` でフッター集計行データを設定します。
 * `props.footerConfig` でフッター位置と動作を設定します。

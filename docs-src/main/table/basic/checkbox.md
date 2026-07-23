@@ -1,5 +1,5 @@
 # 多选框
-## 使用内置扩展 <Badge type="tip" text="^1.0.0" />
+## 使用内置扩展
 [CheckboxCell](/main/table/advanced/custom-cells/checkbox-cell)
 
 ## 自行实现

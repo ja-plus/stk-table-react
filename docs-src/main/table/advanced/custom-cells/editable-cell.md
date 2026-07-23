@@ -1,4 +1,4 @@
-# EditableCell 可编辑单元格 <Badge type="tip" text="^1.0.0" /> <Badge type="warning" text="Beta" />
+# EditableCell 可编辑单元格 <Badge type="warning" text="Beta" />
 
 EditableCell 是一个内置的可编辑单元格组件，双击单元格即可进入编辑模式，支持键盘操作保存或取消。
 

@@ -1,4 +1,4 @@
-# EditableCell <Badge type="tip" text="^1.0.0" /> <Badge type="warning" text="Beta" />
+# EditableCell <Badge type="warning" text="Beta" />
 
 EditableCell is a built-in editable cell component. Double-click a cell to enter edit mode, with keyboard support for saving or canceling.
 

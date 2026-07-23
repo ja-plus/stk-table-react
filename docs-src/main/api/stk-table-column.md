@@ -127,7 +127,7 @@ export type SortConfig<T extends Record<string, any>> = {
      * 默认true ($*$应该false)
      */
     stringLocaleCompare?: boolean;
-    /** 是否排序子项。默认false (v0.8.8)*/
+    /** 是否排序子项。默认false */
     sortChildren?: boolean;
 };
 ```

@@ -1,4 +1,4 @@
-# Cell Merging <Badge type="tip" text="^0.8.0" /> 
+# Cell Merging 
 
 Specify cells to be merged through the `StkTableColumns['mergeCells']` function.
 
@@ -27,7 +27,7 @@ Return `{ colspan: number, rowspan: number }` to indicate the number of cells to
 If the table data changes, the `mergeCells` function will be called again to recalculate.
 :::
 
-### Row Merging in Virtual List <Badge type="tip" text="^0.8.4" /> 
+### Row Merging in Virtual List 
 #### Simple Merging
 <demo react="basic/merge-cells/MergeCellsRowVirtual/index.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/basic/merge-cells/MergeCellsRowVirtual/index.tsx"></demo>
 In the code, the `mergeCells` function is defined to use the `rowspan` field in a row as the merge count.

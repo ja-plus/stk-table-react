@@ -90,7 +90,7 @@ Here `duration` is set to `2000` to clear the `class` from the element after the
 ```
 <demo react="advanced/highlight/HighlightCss.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/advanced/highlight/HighlightCss.tsx"></demo>
 
-## ~~Custom Highlight Animation via JS~~ (deprecated in `v0.7.0`)
+## ~~Custom Highlight Animation via JS~~ (deprecated)
 <details>
 <summary>
     Click to view
@@ -143,7 +143,6 @@ type HighlightDimBaseOption = {
      * - When calling setHighlightDimRow, if the corresponding DOM cannot be obtained, it will be discarded directly and not put into the store for loop calculation;
      * - If the key already exists in the store, it will also be deleted.
      * - During the loop calculation, if the DOM of a row no longer exists, it will also be deleted from the store and no longer calculated.
-     * @version ^1.0.0
      */
     ignoreInvisible?: boolean;
 };

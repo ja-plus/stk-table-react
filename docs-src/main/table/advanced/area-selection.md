@@ -1,4 +1,4 @@
-# 区域选取 <Badge type="tip" text="^0.10.0" /> <Badge type="warning" text="Need Register" /> 
+# 区域选取 <Badge type="warning" text="Need Register" /> 
 通过 `props.areaSelection` 启用表格的单元格拖拽选区。
 - 支持复制到剪贴板（Ctrl/Cmd + C）。
 - Esc 取消选区

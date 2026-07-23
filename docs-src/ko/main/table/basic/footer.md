@@ -1,4 +1,4 @@
-# 푸터 요약 행 <Badge type="tip" text="^0.11.0" />
+# 푸터 요약 행
 
 * `props.footerData` 푸터 요약 행 데이터를 설정합니다.
 * `props.footerConfig` 푸터 위치와 동작을 설정합니다.

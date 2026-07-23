@@ -127,7 +127,7 @@ export type SortConfig<T extends Record<string, any>> = {
      * 기본값 true ($*$ should be false)
      */
     stringLocaleCompare?: boolean;
-    /** 자식 아이템 정렬 여부. 기본값 false (v0.8.8)*/
+    /** 자식 아이템 정렬 여부. 기본값 false */
     sortChildren?: boolean;
 };
 ```

@@ -1,4 +1,4 @@
-# Filter 필터 <Badge type="tip" text="^1.0.0" /> <Badge type="warning" text="Beta" />
+# Filter 필터 <Badge type="warning" text="Beta" />
 
 Filter는 내장된 열 헤더 필터 컴포넌트입니다. 열 헤더의 필터 아이콘을 클릭하면 필터 패널이 열리며, 수동으로 옵션을 지정하거나 데이터에서 자동으로 옵션을 추출하는 것을 지원합니다.
 

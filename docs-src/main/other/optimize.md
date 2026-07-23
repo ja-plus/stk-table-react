@@ -18,7 +18,7 @@
     1. 尝试按行滚动。[scroll-row-by-row](/main/table/basic/scroll-row-by-row.md)
     2. 不要在 `.stk-table` 元素上，添加背景颜色。
     3. 尝试tr分层。
-2. 使用内置滚动条(`v0.9.0`). [scrollbar](/main/table/basic/scrollbar.md#内置的滚动条)
+2. 使用内置滚动条. [scrollbar](/main/table/basic/scrollbar.md#内置的滚动条)
     
 ## 高亮
 * 配置 `props.highlightConfig.fps` 指定高亮帧率。降低帧率有利于减少资源占用。

@@ -1,4 +1,4 @@
-# エリア選択 <Badge type="tip" text="^0.10.0" /> <Badge type="warning" text="登録が必要" /> 
+# エリア選択 <Badge type="warning" text="登録が必要" /> 
 `props.areaSelection` を介してテーブルセルドラッグ選択を有効にします。
 - クリップボードへのコピーをサポート（Ctrl/Cmd + C）。
 - Esc で選択をキャンセル

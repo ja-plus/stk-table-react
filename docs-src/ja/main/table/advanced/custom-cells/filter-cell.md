@@ -1,4 +1,4 @@
-# Filter フィルター <Badge type="tip" text="^1.0.0" /> <Badge type="warning" text="Beta" />
+# Filter フィルタ ー <Badge type="warning" text="Beta" />
 
 Filter は組み込みの列ヘッダーフィルターコンポーネントです。列ヘッダーのフィルターアイコンをクリックするとフィルターパネルが表示されます。手動でオプションを指定する方法と、データから自動的にオプションを抽出する方法をサポートしています。
 

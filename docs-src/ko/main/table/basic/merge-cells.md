@@ -1,4 +1,4 @@
-# 셀 병합 <Badge type="tip" text="^0.8.0" /> 
+# 셀 병합 
 
 `StkTableColumns['mergeCells']` 함수를 통해 병합할 셀을 지정합니다.
 
@@ -27,7 +27,7 @@ function mergeCells(data: {
 테이블 데이터가 변경되면 `mergeCells` 함수를 다시 호출하여 계산합니다.
 :::
 
-### 행 병합 가상 리스트 <Badge type="tip" text="^0.8.4" /> 
+### 행 병합 가상 리스트 
 #### 간단한 병합
 <demo react="basic/merge-cells/MergeCellsRowVirtual/index.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/basic/merge-cells/MergeCellsRowVirtual/index.tsx"></demo>
 코드에서 `mergeCells` 함수를 정의하여 행의 `rowspan` 필드를 병합 수량으로 사용합니다.

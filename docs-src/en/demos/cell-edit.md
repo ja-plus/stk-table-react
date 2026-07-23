@@ -1,6 +1,6 @@
 # Cell Edit
 
-## Built-in Cell Edit (`^1.0.0`)
+## Built-in Cell Edit
 The table includes a built-in `createEditableCell` editable cell plugin. Quickly create editable cells via the factory function.
 
 For details, see [EditableCell](/en/main/table/advanced/custom-cells/editable-cell).

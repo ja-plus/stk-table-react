@@ -88,7 +88,7 @@ stkTableRef.current?.setHighlightDimRow(['id1'], {
 ```
 <demo react="advanced/highlight/HighlightCss.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/advanced/highlight/HighlightCss.tsx"></demo>
 
-## ~~JS を通じたカスタムハイライトアニメーション~~（`v0.7.0` で非推奨）
+## ~~JS を通じたカスタムハイライトアニメーション~~（非推奨）
 <details>
 <summary>
     クリックして表示
@@ -141,7 +141,6 @@ type HighlightDimBaseOption = {
      * - setHighlightDimRow を呼び出す際、対応する DOM を取得できない場合は直接破棄され、store のループ計算に入れられません；
      * - store にその key が既に存在する場合も削除されます。
      * - ループ計算中に、ある行の DOM が既に存在しない場合も store から削除され、計算が継続されません。 
-     * @version ^1.0.0
      */
     ignoreInvisible?: boolean;
 };

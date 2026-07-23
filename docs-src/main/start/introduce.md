@@ -31,7 +31,7 @@
 
     ~~对于`筛选`功能，考虑到实际开发中，不同的项目使用的组件库，样式都不相同，如果提供内置的筛选功能，1.可能对整体风格会造成影响。2.对包体积控制有负面效果。因此暂未实现。~~
 
-    `v1.0.0` 内置了[FilterCell 筛选](/main/table/advanced/custom-cells/filter-cell)组件，用户可以按需引入。
+    内置了[FilterCell 筛选](/main/table/advanced/custom-cells/filter-cell)组件，用户可以按需引入。
 
 * 排序不能点击单个箭头。
     

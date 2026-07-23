@@ -1,4 +1,4 @@
-# Filter 筛选 <Badge type="tip" text="^1.0.0" /> <Badge type="warning" text="Beta" />
+# Filter 筛选 <Badge type="warning" text="Beta" />
 
 Filter 是一个内置的列头筛选组件，点击列头筛选图标即可弹出筛选面板，支持手动指定选项和自动从数据提取选项。
 

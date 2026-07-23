@@ -68,7 +68,7 @@
 
 <demo react="basic/sort/SortChildren.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/basic/sort/SortChildren.tsx"></demo>
 
-## 다중 열 정렬 <Badge type="tip" text="^0.11.2" />
+## 다중 열 정렬
 
 `props.sortConfig.multiSort = true`를 설정하면 다중 열 정렬 모드가 활성화됩니다.
 

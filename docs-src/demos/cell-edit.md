@@ -1,6 +1,6 @@
 # 单元格编辑
 
-## 内置的单元格编辑（`^1.0.0`）
+## 内置的单元格编辑
 表格内置了 `createEditableCell` 可编辑单元格插件，通过工厂函数快速创建可编辑单元格。
 
 详情请参考 [EditableCell 可编辑单元格](/main/table/advanced/custom-cells/editable-cell)。

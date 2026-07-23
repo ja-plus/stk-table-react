@@ -1,5 +1,5 @@
 # 다중 선택상자
-## 내장 확장 기능 사용 <Badge type="tip" text="^1.0.0" />
+## 내장 확장 기능 사용
 [CheckboxCell](/main/table/advanced/custom-cells/checkbox-cell)
 
 ## 직접 구현

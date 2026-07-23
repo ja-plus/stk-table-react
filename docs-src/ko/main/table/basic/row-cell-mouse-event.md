@@ -25,7 +25,7 @@
 | --- | --- | --- | --- |
 | rowHover | boolean | true | 마우스 호버 시 행 강조 여부 |
 | rowActive | boolean \| RowActiveOption | true | 선택된 행 강조 여부 |
-| ~~rowCurrentRevokable~~ `deprecated(v0.8.9)`는 `rowActive.revokable` 사용하세요 | ~~boolean~~ | ~~true~~ | ~~현재 행 다시 클릭 시 선택 취소 여부 (rowActive=true)~~ |
+| ~~rowCurrentRevokable~~ `deprecated`는 `rowActive.revokable` 사용하세요 | ~~boolean~~ | ~~true~~ | ~~현재 행 다시 클릭 시 선택 취소 여부 (rowActive=true)~~ |
 | cellHover | boolean | false | 마우스 호버 시 셀 강조 여부 |
 | cellActive | boolean | false | 선택된 셀 강조 여부 |
 | selectedCellRevokable | boolean | true | 셀 다시 클릭 시 선택 취소 여부 (cellActive=true) |

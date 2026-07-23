@@ -1,5 +1,5 @@
 # チェックボックス
-## 組み込み拡張機能を使用 <Badge type="tip" text="^1.0.0" />
+## 組み込み拡張機能を使用
 [CheckboxCell](/main/table/advanced/custom-cells/checkbox-cell)
 
 ## 独自実装

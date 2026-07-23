@@ -1,6 +1,6 @@
 # 셀 편집
 
-## 내장 셀 편집 (`^1.0.0`)
+## 내장 셀 편집
 테이블에는 `createEditableCell` 편집 가능 셀 플러그인이 내장되어 있어 팩토리 함수로 쉽게 편집 가능 셀을 생성할 수 있습니다.
 
 자세한 내용은 [EditableCell 편집 가능 셀](/ko/main/table/advanced/custom-cells/editable-cell)을 참조하세요.

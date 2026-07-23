@@ -113,7 +113,7 @@ export default function MultiHeaderVirtualX() {
     return (
         <div>
             <CheckItem checked={virtual} onChange={setVirtual} text="virtual" />
-            <CheckItem checked={virtualX} onChange={setVirtualX} text="virtual-x(^1.0.0)" />
+            <CheckItem checked={virtualX} onChange={setVirtualX} text="virtual-x" />
             <CheckItem checked={fixedLeft} onChange={setFixedLeft} text="fixed-left(Basic)" />
             <CheckItem checked={fixedRight} onChange={setFixedRight} text="fixed-right(right)" />
             <StkTable

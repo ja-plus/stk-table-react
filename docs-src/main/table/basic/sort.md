@@ -68,7 +68,7 @@
 
 <demo react="basic/sort/SortChildren.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/basic/sort/SortChildren.tsx"></demo>
 
-## 多列排序 <Badge type="tip" text="^0.11.2" />
+## 多列排序
 
 配置 `props.sortConfig.multiSort = true` 即可开启多列排序模式。
 

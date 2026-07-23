@@ -67,7 +67,7 @@
 
 <demo react="basic/sort/SortChildren.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/basic/sort/SortChildren.tsx"></demo>
 
-## 複数列排序 <Badge type="tip" text="^0.11.2" />
+## 複数列排序
 
 `props.sortConfig.multiSort = true` を設定して複数列排序モードを有効にします。
 

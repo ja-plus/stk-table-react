@@ -25,7 +25,7 @@ The Area Selection feature supports advanced interactions such as drag selection
 | --- | --- | --- | --- |
 | rowHover | boolean | true | Whether to highlight hovered rows |
 | rowActive | boolean \| RowActiveOption | true | Whether to highlight selected rows |
-| ~~rowCurrentRevokable~~ `deprecated(v0.8.9)` Please use `rowActive.revokable` | ~~boolean~~ | ~~true~~ | ~~Whether clicking on the current row again can deselect it (when rowActive=true)~~ |
+| ~~rowCurrentRevokable~~ `deprecated` Please use `rowActive.revokable` | ~~boolean~~ | ~~true~~ | ~~Whether clicking on the current row again can deselect it (when rowActive=true)~~ |
 | cellHover | boolean | false | Whether to highlight hovered cells |
 | cellActive | boolean | false | Whether to highlight selected cells |
 | selectedCellRevokable | boolean | true | Whether clicking on the cell again can deselect it (when cellActive=true) |

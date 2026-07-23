@@ -67,7 +67,7 @@ After configuring `props.sortConfig.sortChildren = true`, when clicking on the t
 
 <demo react="basic/sort/SortChildren.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/basic/sort/SortChildren.tsx"></demo>
 
-## Multi-column Sorting <Badge type="tip" text="^0.11.2" />
+## Multi-column Sorting
 
 Configure `props.sortConfig.multiSort = true` to enable multi-column sorting mode.
 

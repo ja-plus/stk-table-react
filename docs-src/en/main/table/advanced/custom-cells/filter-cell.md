@@ -1,4 +1,4 @@
-# Filter <Badge type="tip" text="^1.0.0" /> <Badge type="warning" text="Beta" />
+# Filter <Badge type="warning" text="Beta" />
 
 Filter is a built-in column header filter component. Click the filter icon in the column header to open the filter panel. It supports manually specified options and automatically extracting options from data.
 

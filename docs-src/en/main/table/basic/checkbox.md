@@ -1,5 +1,5 @@
 # Checkbox
-## Using Built-in Extension <Badge type="tip" text="^1.0.0" />
+## Using Built-in Extension
 [CheckboxCell](/main/table/advanced/custom-cells/checkbox-cell)
 
 ## Custom Implementation

@@ -54,11 +54,11 @@ export default function AreaSelection() {
 
     return (
         <div style={{ padding: '16px' }}>
-            <CheckItem checked={keyboard} onChange={setKeyboard} text={t('keyboardSelect') + ` (v0.11.0)`} />
-            <CheckItem checked={ctrlEnabled} onChange={setCtrlEnabled} text={t('ctrlMultiSelect') + ` (v0.11.10)`} />
-            <CheckItem checked={shiftEnabled} onChange={setShiftEnabled} text={t('shiftExpandSelect') + ` (v0.11.10)`} />
-            <CheckItem checked={highlightCell} onChange={setHighlightCell} text={t('cellHighlight') + ` (v0.11.10)`} />
-            <CheckItem checked={highlightRow} onChange={setHighlightRow} text={t('rowHighlight') + ` (v0.11.10)`} />
+            <CheckItem checked={keyboard} onChange={setKeyboard} text={t('keyboardSelect')} />
+            <CheckItem checked={ctrlEnabled} onChange={setCtrlEnabled} text={t('ctrlMultiSelect')} />
+            <CheckItem checked={shiftEnabled} onChange={setShiftEnabled} text={t('shiftExpandSelect')} />
+            <CheckItem checked={highlightCell} onChange={setHighlightCell} text={t('cellHighlight')} />
+            <CheckItem checked={highlightRow} onChange={setHighlightRow} text={t('rowHighlight')} />
             <StkTable
                 style={{ height: '400px' }}
                 rowKey="id"

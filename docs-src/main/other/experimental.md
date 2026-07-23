@@ -2,7 +2,7 @@
 
 这是实验性功能，未来版本可能会发生变化
 
-## experimental.scrollY <Badge type="tip" text="^0.10.0" /> 
+## experimental.scrollY 
 
 基于 transform 的垂直滚动模拟。
 

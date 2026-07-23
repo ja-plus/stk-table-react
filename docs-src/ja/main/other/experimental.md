@@ -2,7 +2,7 @@
 
 これは実験的な機能であり、将来のバージョンで変更される可能性があります。
 
-## experimental.scrollY <Badge type="tip" text="^0.10.0" />
+## experimental.scrollY 
 
 Transformベースの縦スクロールシミュレーション。
 

@@ -9,6 +9,11 @@ import {
     IS_LEGACY_MODE,
 } from './const';
 import {
+    AreaSelectionConfig,
+    AreaSelectionRange,
+    AreaSelectionSetterOption,
+    AreaSelectionSetterRange,
+    AutoRowHeightConfig,
     Order,
     PrivateRowDT,
     PrivateStkTableColumn,
@@ -23,20 +28,143 @@ import {
 } from './types';
 import { getCalculatedColWidth, createStkTableId } from './utils/constRefUtils';
 import {
+    binarySearch,
     getClosestColKey,
     getClosestTd,
     getClosestTr,
     getClosestTrIndex,
+    pureCellKeyGen,
     tableSort,
+    throttle,
     transformWidthToStr,
 } from './utils';
 import { useTableColumns } from './hooks/useTableColumns';
+import { useHighlight } from './hooks/useHighlight';
 import { StkTableContext } from './context';
 import type { StkTableContextType } from './context';
 
 type DT = any & PrivateRowDT;
 
 const SORT_SWITCH_ORDER: Order[] = [null, 'desc', 'asc'];
+
+/** 检测主要指针是否为触摸设备（移动/平板） */
+function isTouchPrimaryDevice(): boolean {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+}
+
+// ---- 区域选取常量与工具 ----
+/** 自动滚动：鼠标距容器边缘多少px开始触发 */
+const EDGE_ZONE = 40;
+/** 自动滚动：每帧最大滚动像素 */
+const SCROLL_SPEED_MAX = 15;
+const POINT_EDGE_OFFSET = 2;
+
+const KEY_ARROW_UP = 'ArrowUp';
+const KEY_ARROW_DOWN = 'ArrowDown';
+const KEY_ARROW_LEFT = 'ArrowLeft';
+const KEY_ARROW_RIGHT = 'ArrowRight';
+const KEY_TAB = 'Tab';
+const KEY_ESCAPE = 'Escape';
+const KEY_ESC = 'Esc';
+const KEY_C = 'c';
+
+// 区域选取 CSS 类名
+const CELL_RANGE_SELECTED = 'cell-range-selected';
+const CELL_RANGE_TOP = 'cell-range-t';
+const CELL_RANGE_BOTTOM = 'cell-range-b';
+const CELL_RANGE_LEFT = 'cell-range-l';
+const CELL_RANGE_RIGHT = 'cell-range-r';
+const ROW_RANGE_SELECTED = 'row-range-selected';
+
+/** 钳制值到指定范围内 */
+function clampNum(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(value, max));
+}
+
+/** 获取归一化（min/max）后的选区范围 */
+function normalizeRange(range: AreaSelectionRange) {
+    const { begin, end } = range.index;
+    return {
+        minRow: Math.min(begin.row, end.row),
+        maxRow: Math.max(begin.row, end.row),
+        minCol: Math.min(begin.col, end.col),
+        maxCol: Math.max(begin.col, end.col),
+    };
+}
+
+/** 构造选区范围。begin = 拖拽起点，end = 拖拽终点 */
+function makeRange(beginRow: number, beginCol: number, endRow: number, endCol: number): AreaSelectionRange {
+    return {
+        index: {
+            x: [beginCol, endCol],
+            y: [beginRow, endRow],
+            begin: { row: beginRow, col: beginCol },
+            end: { row: endRow, col: endCol },
+        },
+    };
+}
+
+/** 计算自动滚动的增量 */
+function calculateAutoScrollDelta(mouseX: number, mouseY: number, rect: DOMRect): { deltaX: number; deltaY: number } {
+    const { top, bottom, left, right } = rect;
+    let deltaX = 0;
+    let deltaY = 0;
+
+    // Y方向
+    if (mouseY < top + EDGE_ZONE) {
+        const dist = Math.max(0, top + EDGE_ZONE - mouseY);
+        deltaY = -Math.ceil((dist / EDGE_ZONE) * SCROLL_SPEED_MAX);
+    } else if (mouseY > bottom - EDGE_ZONE) {
+        const dist = Math.max(0, mouseY - (bottom - EDGE_ZONE));
+        deltaY = Math.ceil((dist / EDGE_ZONE) * SCROLL_SPEED_MAX);
+    }
+
+    // X方向
+    if (mouseX < left + EDGE_ZONE) {
+        const dist = Math.max(0, left + EDGE_ZONE - mouseX);
+        deltaX = -Math.ceil((dist / EDGE_ZONE) * SCROLL_SPEED_MAX);
+    } else if (mouseX > right - EDGE_ZONE) {
+        const dist = Math.max(0, mouseX - (right - EDGE_ZONE));
+        deltaX = Math.ceil((dist / EDGE_ZONE) * SCROLL_SPEED_MAX);
+    }
+
+    return { deltaX, deltaY };
+}
+
+/** 根据按键计算移动方向 */
+function getMovementDelta(key: string, shiftKey: boolean): [number, number] {
+    let rowDelta = 0;
+    let colDelta = 0;
+
+    switch (key) {
+        case KEY_ARROW_UP:
+            rowDelta = -1;
+            break;
+        case KEY_ARROW_DOWN:
+            rowDelta = 1;
+            break;
+        case KEY_ARROW_LEFT:
+            colDelta = -1;
+            break;
+        case KEY_ARROW_RIGHT:
+            colDelta = 1;
+            break;
+        case KEY_TAB:
+            // Tab: right; Shift+Tab: left
+            colDelta = shiftKey ? -1 : 1;
+            break;
+    }
+
+    return [rowDelta, colDelta];
+}
+
+/** 处理Tab键的换行逻辑 */
+function handleTabWrap(row: number, col: number, rawCol: number, rowCount: number, colCount: number): [number, number] {
+    if (rawCol >= colCount) return [Math.min(row + 1, rowCount - 1), 0];
+    if (rawCol < 0) return [Math.max(row - 1, 0), colCount - 1];
+    return [row, col];
+}
 
 /**
  * StkTable React Component
@@ -144,6 +272,11 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
     const [sortStates, setSortStates] = useState<SortState<DT>[]>([]);
     const [isColResizing, setIsColResizing] = useState(false);
     const [version, setVersion] = useState(0); // force re-render
+    // 自定义滚动条状态
+    const [sbThumb, setSbThumb] = useState({ h: 0, w: 0, t: 0, l: 0 });
+    const [showScrollbar, setShowScrollbar] = useState({ x: false, y: false });
+    // scroll-row-by-row 拖动滚动状态
+    const [isDragScroll, setIsDragScroll] = useState(false);
 
     // Refs for mutable state that shouldn't trigger re-render
     const virtualScrollRef = useRef({
@@ -171,9 +304,21 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
     const rowKeyGenCacheRef = useRef(new WeakMap());
     const autoRowHeightMapRef = useRef(new Map<string, number>());
     const maxRowSpanRef = useRef(new Map<UniqKey, number>());
+    /** 横向虚拟滚动列宽缓存，避免每次滚动都 O(n) 构建 */
+    const colWidthCacheRef = useRef<{
+        cols: PrivateStkTableColumn<DT>[] | null;
+        nonFixedCols: { index: number; cumWidth: number }[];
+        leftFixedCols: { index: number; width: number }[];
+    }>({ cols: null, nonFixedCols: [], leftFixedCols: [] });
     const isWheelingRef = useRef(false);
     const wheelingTimerRef = useRef(0);
     const scrollRAFScheduledRef = useRef(false);
+    /** 自定义滚动条拖动状态 */
+    const sbDragRef = useRef({ isVertical: false, isHorizontal: false, startY: 0, startX: 0, startTop: 0, startLeft: 0 });
+    const sbDragHandlerRef = useRef<((e: MouseEvent | TouchEvent) => void) | undefined>(undefined);
+    const isMobileDeviceRef = useRef(false);
+    /** scroll-row-by-row 拖动结束 debounce 定时器 */
+    const srbrDebounceRef = useRef(0);
 
     // Column processing
     const { tableHeadersRef, tableHeadersForCalcRef, dealColumns } = useTableColumns<DT>(isRelativeMode);
@@ -269,6 +414,8 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
 
     const isTreeData = useMemo(() => columns.some(col => col.type === 'tree-node'), [columns]);
 
+    const hasExpandCol = useMemo(() => tableHeaderLast.some(col => col.type === 'expand'), [tableHeaderLast]);
+
     const tableHeaderHeight = useMemo(() => {
         return (headerRowHeight as number) * (tableHeadersRef.current.length || 1);
     }, [headerRowHeight, version]);
@@ -284,12 +431,47 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
         return dataSourceCopy.slice(startIndex, endIndex + 1);
     }, [virtual_on, dataSourceCopy, version]);
 
+    // Virtual scroll functions
+    /** 获取行高函数：autoRowHeight 时返回测量/预估高度，展开行返回配置高度 */
+    const getRowHeightFn = useMemo(() => {
+        const baseRowHeight = rowHeight || DEFAULT_ROW_HEIGHT;
+        let fn: (row?: DT) => number = () => baseRowHeight;
+        if (autoRowHeight) {
+            const temp = fn;
+            fn = (r?: DT) => {
+                if (r) {
+                    const stored = autoRowHeightMapRef.current.get(String(rowKeyGen(r)));
+                    if (stored) return stored;
+                }
+                const expectedHeight = (autoRowHeight as AutoRowHeightConfig<DT>)?.expectedHeight;
+                if (expectedHeight) {
+                    if (typeof expectedHeight === 'function') return r ? expectedHeight(r) : temp(r);
+                    return expectedHeight;
+                }
+                return temp(r);
+            };
+        }
+        if (hasExpandCol) {
+            const expandedRowHeight = expandConfig?.height;
+            const temp = fn;
+            fn = (r?: DT) => (r && r.__EXP_R__ && expandedRowHeight ? expandedRowHeight : temp(r));
+        }
+        return fn;
+    }, [rowHeight, autoRowHeight, hasExpandCol, expandConfig, rowKeyGen]);
+
     const virtual_offsetBottom = useMemo(() => {
         if (!virtual_on) return 0;
-        const { startIndex } = virtualScrollRef.current;
+        const { startIndex, endIndex } = virtualScrollRef.current;
+        if (autoRowHeight || hasExpandCol) {
+            let offsetBottom = 0;
+            for (let i = endIndex + 1; i < dataSourceCopy.length; i++) {
+                offsetBottom += getRowHeightFn(dataSourceCopy[i]);
+            }
+            return offsetBottom;
+        }
         const rh = virtualScrollRef.current.rowHeight;
         return (dataSourceCopy.length - startIndex - virtual_dataSourcePart.length) * rh;
-    }, [virtual_on, dataSourceCopy, virtual_dataSourcePart, version]);
+    }, [virtual_on, dataSourceCopy, virtual_dataSourcePart, version, autoRowHeight, hasExpandCol, getRowHeightFn]);
 
     const virtualX_on = useMemo(() => {
         if (!virtualX) return false;
@@ -297,43 +479,223 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
         return totalWidth > virtualScrollXRef.current.containerWidth + 100;
     }, [virtualX, tableHeaderLast, version]);
 
+    /** 是否多级表头 */
+    const isMultiLevelHeader = useMemo(() => tableHeaders.length > 1, [tableHeaders]);
+
+    /**
+     * 多级表头横向虚拟滚动参数：以顶层列组为单位计算开始/结束位置。
+     * - 只有整个顶层组完全滚出视口时才移除（避免 colSpan 变化导致抖动）。
+     * - 单级表头时退化为与 tbody 相同的参数。
+     */
+    const theadVirtualX = useMemo(() => {
+        if (!virtualX_on || !isMultiLevelHeader) {
+            return {
+                startIndex: virtualScrollXRef.current.startIndex,
+                endIndex: virtualScrollXRef.current.endIndex,
+                offsetLeft: virtualScrollXRef.current.offsetLeft,
+            };
+        }
+        const { scrollLeft, containerWidth } = virtualScrollXRef.current;
+        const topLevelCols = tableHeaders[0];
+        const totalLeafCount = tableHeaderLast.length;
+
+        let theadStartIndex = 0;
+        let theadEndIndex = totalLeafCount;
+        let theadOffsetLeft = 0;
+        let cumLeft = 0;
+        let foundStart = false;
+
+        for (let i = 0, len = topLevelCols.length; i < len; i++) {
+            const col = topLevelCols[i];
+            if (col.fixed === 'left' || col.fixed === 'right') continue;
+
+            const groupWidth = col.__W__ || getCalculatedColWidth(col);
+            const groupRight = cumLeft + groupWidth;
+
+            if (!foundStart && groupRight > scrollLeft) {
+                foundStart = true;
+                theadStartIndex = col.__LF_S__ ?? 0;
+                theadOffsetLeft = cumLeft;
+            }
+            cumLeft = groupRight;
+
+            theadEndIndex = col.__LF_E__ ?? totalLeafCount;
+            if (foundStart && groupRight >= scrollLeft + containerWidth) {
+                // find end
+                break;
+            }
+        }
+
+        if (!foundStart) {
+            theadStartIndex = totalLeafCount;
+            theadOffsetLeft = cumLeft;
+        }
+
+        return { startIndex: theadStartIndex, endIndex: theadEndIndex, offsetLeft: theadOffsetLeft };
+    }, [virtualX_on, isMultiLevelHeader, tableHeaders, tableHeaderLast, version]);
+
+    const virtualX_columnPart = useMemo(() => {
+        if (virtualX_on) {
+            const { startIndex, endIndex } = virtualScrollXRef.current;
+            // 将索引钳制到列数组范围内，防止列数减少时越界
+            const maxIndex = tableHeaderLast.length;
+            const validEndIndex = Math.min(endIndex, maxIndex);
+            const validStartIndex = Math.min(startIndex, maxIndex);
+
+            // 多级表头：分离左/右固定列，插入 spacer 标记实现对齐
+            if (isMultiLevelHeader) {
+                const leftFixedCols: PrivateStkTableColumn<DT>[] = [];
+                const rightFixedCols: PrivateStkTableColumn<DT>[] = [];
+                const visibleCols: PrivateStkTableColumn<DT>[] = [];
+                for (let i = 0; i < tableHeaderLast.length; i++) {
+                    const col = tableHeaderLast[i];
+                    if (col.fixed === 'right') {
+                        rightFixedCols.push(col);
+                    } else if (col.fixed === 'left') {
+                        leftFixedCols.push(col);
+                    } else if (i >= validStartIndex && i < validEndIndex) {
+                        visibleCols.push(col);
+                    }
+                }
+
+                const result: PrivateStkTableColumn<DT>[] = [];
+                result.push(...leftFixedCols);
+
+                // left spacer：theadStart ~ tbodyStart 之间非 fixed:left 的叶子列数
+                const theadStart = theadVirtualX.startIndex;
+                const leftSpacerColspan = Math.max(0, startIndex - theadStart);
+                if (leftSpacerColspan) {
+                    result.push({ __VT_C_SP__: leftSpacerColspan } as PrivateStkTableColumn<DT>);
+                }
+
+                result.push(...visibleCols);
+
+                // right spacer：tbodyEnd ~ theadEnd 之间的非 fixed:right 列数
+                const rightSpacerColspan = Math.max(0, theadVirtualX.endIndex - endIndex);
+                if (rightSpacerColspan) {
+                    result.push({ __VT_C_SP__: rightSpacerColspan } as PrivateStkTableColumn<DT>);
+                }
+                result.push(...rightFixedCols);
+
+                return result;
+            }
+
+            // 单级表头：保持原有重排逻辑（向后兼容）
+            const leftCols: PrivateStkTableColumn<DT>[] = [];
+            const rightCols: PrivateStkTableColumn<DT>[] = [];
+
+            // 左侧固定列，如果在左边不可见区。则需要拿出来放在前面
+            for (let i = 0; i < validStartIndex; i++) {
+                const col = tableHeaderLast[i];
+                if (col?.fixed === 'left') leftCols.push(col);
+            }
+            // 右侧固定列，如果在右边不可见区。则需要拿出来放在后面
+            for (let i = validEndIndex; i < tableHeaderLast.length; i++) {
+                const col = tableHeaderLast[i];
+                if (col?.fixed === 'right') rightCols.push(col);
+            }
+
+            const mainColumns = tableHeaderLast.slice(validStartIndex, validEndIndex);
+            return leftCols.concat(mainColumns).concat(rightCols);
+        }
+        return tableHeaderLast;
+    }, [virtualX_on, isMultiLevelHeader, theadVirtualX, tableHeaderLast, version]);
+
+    /**
+     * 表头横向虚拟滚动：
+     * - 单级表头：最后一行使用 virtualX_columnPart，其他行原样返回。
+     * - 多级表头：按顶层组粒度过滤（整个组滚出才移除），保持 colSpan 稳定。
+     */
+    const virtualX_tableHeaders = useMemo(() => {
+        if (!virtualX_on) return tableHeaders;
+        if (isMultiLevelHeader) {
+            const { startIndex, endIndex } = theadVirtualX;
+            return tableHeaders.map(row => {
+                return row.filter(col => {
+                    if (col.fixed === 'left' || col.fixed === 'right') return true;
+                    const leafStart = col.__LF_S__ ?? 0;
+                    const leafEnd = col.__LF_E__ ?? leafStart + 1;
+                    return leafEnd > startIndex && leafStart < endIndex;
+                });
+            });
+        }
+        // 单级：最后一行用 virtualX_columnPart
+        return tableHeaders.map((row, i) => (i === tableHeaders.length - 1 ? virtualX_columnPart : row));
+    }, [virtualX_on, isMultiLevelHeader, theadVirtualX, tableHeaders, virtualX_columnPart]);
+
+    /** 展开行 colspan：虚拟滚动时等于所有 td 元素数量（含 spacer）之和 */
+    const expandRowColspan = useMemo(() => {
+        if (!virtualX_on) return tableHeaderLast.length;
+        const spacers = virtualX_columnPart.filter(c => c.__VT_C_SP__);
+        // 2 = vt-x-left + vt-x-right
+        // 每个 spacer 项占 1 个位置，colspan > 1 时额外增加 (colspan - 1)
+        return 2 + virtualX_columnPart.length + spacers.reduce((sum, s) => sum + Math.max(0, (s.__VT_C_SP__ ?? 0) - 1), 0);
+    }, [virtualX_on, virtualX_columnPart, tableHeaderLast]);
+
     const virtualX_offsetRight = useMemo(() => {
         if (!virtualX_on) return 0;
-        const endIndex = virtualScrollXRef.current.endIndex;
+        // 多级表头使用 theadEndIndex，单级使用 body endIndex
+        const endIndex = isMultiLevelHeader ? theadVirtualX.endIndex : virtualScrollXRef.current.endIndex;
         let w = 0;
         for (let i = endIndex; i < tableHeaderLast.length; i++) {
             const col = tableHeaderLast[i];
             if (col.fixed !== 'right') w += getCalculatedColWidth(col);
         }
         return w;
-    }, [virtualX_on, tableHeaderLast, version]);
+    }, [virtualX_on, isMultiLevelHeader, theadVirtualX, tableHeaderLast, version]);
 
-    const virtualX_columnPart = useMemo(() => {
-        if (virtualX_on) {
-            const { startIndex, endIndex } = virtualScrollXRef.current;
-            const maxIndex = tableHeaderLast.length;
-            const validEndIndex = Math.min(endIndex, maxIndex);
-            const validStartIndex = Math.min(startIndex, maxIndex);
-            const leftCols: PrivateStkTableColumn<DT>[] = [];
-            const rightCols: PrivateStkTableColumn<DT>[] = [];
-            for (let i = 0; i < validStartIndex; i++) {
-                const col = tableHeaderLast[i];
-                if (col?.fixed === 'left') leftCols.push(col);
+    // Merge cells: 计算需要隐藏的单元格与合并跨度
+    const mergeCellsInfo = useMemo(() => {
+        const hiddenCellMap = new Map<UniqKey, Set<UniqKey>>();
+        const mergeSpanMap = new Map<string, { colspan?: number; rowspan?: number }>();
+        const headers = tableHeaderLast;
+        const hasMerge = headers.some(c => c.mergeCells);
+        if (!hasMerge) return { hiddenCellMap, mergeSpanMap };
+
+        const colIndexCache = new Map<UniqKey, number>();
+        const hideCells = (rowKey: UniqKey, colKey: UniqKey, colspan: number, isSelfRow: boolean) => {
+            let startIndex = colIndexCache.get(colKey);
+            if (startIndex === void 0) {
+                startIndex = headers.findIndex(item => colKeyGen(item) === colKey);
+                if (startIndex < 0) return;
+                colIndexCache.set(colKey, startIndex);
             }
-            for (let i = validEndIndex; i < tableHeaderLast.length; i++) {
-                const col = tableHeaderLast[i];
-                if (col?.fixed === 'right') rightCols.push(col);
+            let hiddenSet = hiddenCellMap.get(rowKey);
+            if (!hiddenSet) {
+                hiddenSet = new Set();
+                hiddenCellMap.set(rowKey, hiddenSet);
             }
-            const mainColumns = tableHeaderLast.slice(validStartIndex, validEndIndex);
-            return leftCols.concat(mainColumns).concat(rightCols);
+            const endIndex = Math.min(startIndex + colspan, headers.length);
+            for (let i = startIndex; i < endIndex; i++) {
+                if (isSelfRow && i === startIndex) continue;
+                const nextCol = headers[i];
+                if (!nextCol) break;
+                hiddenSet.add(colKeyGen(nextCol));
+            }
+        };
+
+        for (let rowIndex = 0; rowIndex < virtual_dataSourcePart.length; rowIndex++) {
+            const row = virtual_dataSourcePart[rowIndex];
+            if (!row || row.__EXP_R__) continue;
+            for (let colIndex = 0; colIndex < headers.length; colIndex++) {
+                const col = headers[colIndex];
+                if (!col.mergeCells) continue;
+                let { colspan, rowspan } = col.mergeCells({ row, col, rowIndex, colIndex }) || {};
+                colspan = colspan || 1;
+                rowspan = rowspan || 1;
+                if (colspan === 1 && rowspan === 1) continue;
+                const rowKey = rowKeyGen(row);
+                const colKey = colKeyGen(col);
+                for (let i = rowIndex; i < rowIndex + rowspan; i++) {
+                    const targetRow = virtual_dataSourcePart[i];
+                    if (!targetRow) break;
+                    hideCells(rowKeyGen(targetRow), colKey, colspan as number, i === rowIndex);
+                }
+                mergeSpanMap.set(pureCellKeyGen(rowKey, colKey), { colspan, rowspan });
+            }
         }
-        return tableHeaderLast;
-    }, [virtualX_on, tableHeaderLast, version]);
-
-    const expandRowColspan = useMemo(() => {
-        if (!virtualX_on) return tableHeaderLast.length;
-        return 2 + virtualX_columnPart.length;
-    }, [virtualX_on, virtualX_columnPart, tableHeaderLast]);
+        return { hiddenCellMap, mergeSpanMap };
+    }, [virtual_dataSourcePart, tableHeaderLast, colKeyGen, rowKeyGen]);
 
     // Fixed column position
     const getFixedColPosition = useMemo(() => {
@@ -431,26 +793,86 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
         return { [TagType.TH]: thMap, [TagType.TD]: tdMap, [TagType.TF]: tfMap };
     }, [version, virtualX, colKeyGen, getFixedStyle]);
 
+    // Fixed col shadow
+    const fixedColsRef = useRef<StkTableColumn<DT>[]>([]);
+    const fixedShadowColsRef = useRef<StkTableColumn<DT>[]>([]);
+
+    /** 滚动条变化时，更新需要展示阴影的列 */
+    const updateFixedShadow = useCallback(() => {
+        const fixedColsTemp: StkTableColumn<DT>[] = [];
+        let clientWidth: number;
+        let scrollLeft: number;
+        if (virtualX_on) {
+            const { containerWidth: cw, scrollLeft: sl } = virtualScrollXRef.current;
+            clientWidth = cw;
+            scrollLeft = sl;
+        } else {
+            const el = tableContainerRef.current;
+            clientWidth = el?.clientWidth || 0;
+            scrollLeft = el?.scrollLeft || 0;
+        }
+        /** 左侧需要展示阴影的列 */
+        const leftShadowCol: StkTableColumn<DT>[] = [];
+        /** 右侧展示阴影的列 */
+        const rightShadowCol: StkTableColumn<DT>[] = [];
+        const headers = tableHeadersForCalcRef.current;
+        for (let level = 0; level < headers.length; level++) {
+            const row = headers[level];
+            let left = 0;
+            for (let i = 0, rowLen = row.length; i < rowLen; i++) {
+                const col = row[i];
+                const position = getFixedColPosition(col);
+                const isFixedLeft = col.fixed === 'left';
+                const isFixedRight = col.fixed === 'right';
+                if (isFixedLeft && position + scrollLeft > left) {
+                    fixedColsTemp.push(col);
+                    leftShadowCol[level] = col;
+                }
+                left += getCalculatedColWidth(col);
+                if (isFixedRight && scrollLeft + clientWidth - left < position) {
+                    fixedColsTemp.push(col);
+                    // 右固定列阴影，只要第一列
+                    if (!rightShadowCol[level]) {
+                        rightShadowCol[level] = col;
+                    }
+                }
+            }
+        }
+        if (fixedColShadow) {
+            fixedShadowColsRef.current = leftShadowCol.concat(rightShadowCol).filter(Boolean) as StkTableColumn<DT>[];
+        }
+        fixedColsRef.current = fixedColsTemp;
+    }, [virtualX_on, getFixedColPosition, fixedColShadow]);
+
     // Fixed col class map
     const fixedColClassMap = useMemo(() => {
         const colMap = new Map();
+        const fixedShadowColsValue = fixedShadowColsRef.current;
+        const fixedColsValue = fixedColsRef.current;
         const headers = tableHeadersRef.current;
         for (let i = 0; i < headers.length; i++) {
             const cols = headers[i];
             for (let j = 0; j < cols.length; j++) {
                 const col = cols[j];
                 const fixed = col.fixed;
+                const showShadow = fixed && fixedColShadow && fixedShadowColsValue.includes(col);
                 const classList: string[] = [];
+                if (fixedColsValue.includes(col)) {
+                    // 表示该列正在被固定
+                    classList.push('fixed-cell--active');
+                }
                 if (fixed) {
                     classList.push('fixed-cell');
                     classList.push('fixed-cell--' + fixed);
-                    classList.push('fixed-cell--active');
+                }
+                if (showShadow) {
+                    classList.push('fixed-cell--shadow');
                 }
                 colMap.set(colKeyGen(col), classList);
             }
         }
         return colMap;
-    }, [version, colKeyGen]);
+    }, [version, colKeyGen, fixedColShadow]);
 
     // Sort functions
     const getColumnSortState = useCallback(
@@ -461,12 +883,13 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
     );
 
     const sortData = useCallback(
-        (data: DT[]): DT[] => {
-            if (!sortStates.length) return data;
+        (data: DT[], states?: SortState<DT>[]): DT[] => {
+            const st = states ?? sortStates;
+            if (!st.length) return data;
             const sc = { ...DEFAULT_SORT_CONFIG, ...sortConfig };
             let result = data.slice();
-            for (let i = sortStates.length - 1; i >= 0; i--) {
-                const state = sortStates[i];
+            for (let i = st.length - 1; i >= 0; i--) {
+                const state = st[i];
                 const col = tableHeaderLast.find(c => (state.key && colKeyGen(c) === state.key) || c.dataIndex === state.dataIndex);
                 if (col && state.order) {
                     const colSortConfig = { ...sc, ...col.sortConfig };
@@ -540,12 +963,11 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
         [dataSource, sortRemote, sortData, isTreeData, flatTreeData, filterDataSource],
     );
 
-    // Virtual scroll functions
     const updateVirtualScrollY = useCallback(
         (sTop = 0) => {
             const vs = virtualScrollRef.current;
             const dataLength = dataSourceCopy.length;
-            const rh = vs.rowHeight;
+            const rh = getRowHeightFn();
             const scrollHeight = dataLength * rh + tableHeaderHeight;
 
             if (scrollbarOptions.enabled) {
@@ -563,8 +985,40 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                 return;
             }
 
-            let startIndex = Math.floor(sTop / rh);
-            let endIndex = startIndex + vs.pageSize;
+            let startIndex = 0;
+            let endIndex = dataLength;
+            let autoRowHeightTop = 0;
+            if (autoRowHeight || hasExpandCol) {
+                // 批量测量已渲染行的实际高度
+                if (autoRowHeight) {
+                    trRefsMap.current.forEach((tr, rowKey) => {
+                        if (!rowKey || autoRowHeightMapRef.current.has(rowKey)) return;
+                        autoRowHeightMapRef.current.set(rowKey, tr.offsetHeight);
+                    });
+                }
+                // calculate startIndex
+                for (let i = 0; i < dataLength; i++) {
+                    const height = getRowHeightFn(dataSourceCopy[i]);
+                    autoRowHeightTop += height;
+                    if (autoRowHeightTop >= sTop) {
+                        startIndex = i;
+                        autoRowHeightTop -= height;
+                        break;
+                    }
+                }
+                // calculate endIndex
+                let containerHeightSum = 0;
+                for (let i = startIndex + 1; i < dataLength; i++) {
+                    containerHeightSum += getRowHeightFn(dataSourceCopy[i]);
+                    if (containerHeightSum >= vs.containerHeight) {
+                        endIndex = i;
+                        break;
+                    }
+                }
+            } else {
+                startIndex = Math.floor(sTop / rh);
+                endIndex = startIndex + vs.pageSize;
+            }
 
             // maxRowSpan correction
             if (maxRowSpanRef.current.size) {
@@ -590,55 +1044,110 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                 endIndex = correctedEndIndex;
             }
 
-            if (stripe && startIndex > 0 && startIndex % 2) {
+            if (stripe && !isExperimentalScrollY && startIndex > 0 && startIndex % 2) {
+                // 斑马纹情况下，每滚动偶数行才加载。防止斑马纹错位。
                 startIndex -= 1;
+                if (autoRowHeight || hasExpandCol) {
+                    const height = getRowHeightFn(dataSourceCopy[startIndex]);
+                    autoRowHeightTop -= height;
+                }
             }
 
             startIndex = Math.max(0, startIndex);
             endIndex = Math.min(endIndex, dataLength);
             if (startIndex >= endIndex) startIndex = endIndex - vs.pageSize;
 
-            const offsetTop = startIndex * rh;
+            let offsetTop = 0;
+            if (autoRowHeight || hasExpandCol) {
+                offsetTop = autoRowHeightTop;
+            } else {
+                offsetTop = startIndex * rh;
+            }
             Object.assign(vs, { startIndex, endIndex, offsetTop });
         },
-        [dataSourceCopy, virtual_on, tableHeaderHeight, scrollbarOptions, isExperimentalScrollY, scrollRowByRow, stripe, rowKeyGen],
+        [dataSourceCopy, virtual_on, tableHeaderHeight, scrollbarOptions, isExperimentalScrollY, scrollRowByRow, stripe, rowKeyGen, getRowHeightFn, autoRowHeight, hasExpandCol],
     );
+
+    const getColWidthCache = useCallback((cols: PrivateStkTableColumn<DT>[]) => {
+        const cache = colWidthCacheRef.current;
+        if (cache.cols === cols) return cache;
+        const nonFixedCols: { index: number; cumWidth: number }[] = [];
+        const leftFixedCols: { index: number; width: number }[] = [];
+        let cumWidth = 0;
+        for (let i = 0; i < cols.length; i++) {
+            const col = cols[i];
+            const w = getCalculatedColWidth(col);
+            if (col.fixed === 'left') {
+                leftFixedCols.push({ index: i, width: w });
+                continue;
+            }
+            cumWidth += w;
+            nonFixedCols.push({ index: i, cumWidth });
+        }
+        const newCache = { cols, nonFixedCols, leftFixedCols };
+        colWidthCacheRef.current = newCache;
+        return newCache;
+    }, []);
 
     const updateVirtualScrollX = useCallback(
         (sLeft = 0) => {
             if (!virtualX) return;
-            const headerLength = tableHeaderLast.length;
+            const tableHeaderLastValue = tableHeaderLast;
+            const headerLength = tableHeaderLastValue.length;
             if (!headerLength) return;
             const vsx = virtualScrollXRef.current;
             const { containerWidth } = vsx;
 
             let startIndex = 0;
             let offsetLeft = 0;
-            let cumWidth = 0;
+            /** 横向滚动时，第一列的剩余宽度 */
+            let leftFirstColRestWidth = 0;
 
-            for (let i = 0; i < headerLength; i++) {
-                const colW = getCalculatedColWidth(tableHeaderLast[i]);
-                if (cumWidth + colW > sLeft) {
-                    startIndex = i;
-                    offsetLeft = cumWidth;
-                    break;
-                }
-                cumWidth += colW;
+            // 使用缓存的累计宽度数组，列配置不变时直接复用
+            const { nonFixedCols, leftFixedCols } = getColWidthCache(tableHeaderLastValue);
+
+            if (nonFixedCols.length > 0 && sLeft > 0) {
+                // 二分查找：找到第一个累计宽度 > sLeft 的非固定列
+                // 使用 <= 确保当列右边缘恰好等于 sLeft 时（列完全滚出视口），不再将其作为起始列
+                const found = binarySearch(nonFixedCols, mid => {
+                    return nonFixedCols[mid].cumWidth <= sLeft ? -1 : 1;
+                });
+                const idx = Math.min(found, nonFixedCols.length - 1);
+                startIndex = nonFixedCols[idx].index;
+                offsetLeft = idx > 0 ? nonFixedCols[idx - 1].cumWidth : 0;
+                leftFirstColRestWidth = nonFixedCols[idx].cumWidth - sLeft;
+            } else if (nonFixedCols.length > 0) {
+                startIndex = nonFixedCols[0].index;
             }
 
+            // 根据 startIndex 快速计算实际在可视区域内的左侧固定列宽度
+            let actualLeftColWidthSum = 0;
+            for (const leftCol of leftFixedCols) {
+                if (leftCol.index >= startIndex) break;
+                actualLeftColWidthSum += leftCol.width;
+            }
+            const containerW = containerWidth - actualLeftColWidthSum;
             let endIndex = headerLength;
-            let endColWidthSum = cumWidth + getCalculatedColWidth(tableHeaderLast[startIndex]) - sLeft;
-            for (let i = startIndex + 1; i < headerLength; i++) {
-                endColWidthSum += getCalculatedColWidth(tableHeaderLast[i]);
-                if (endColWidthSum >= containerWidth) {
-                    endIndex = i + 1;
+            let endColWidthSum = leftFirstColRestWidth;
+
+            /**
+             * 这里根据 leftFirstColRestWidth 如果为0 说明开始位置恰好在单元格边界，则计算endIndex 需要从当前单元格开始。
+             * 如果有值，则说明开始位置的单元格已经切了一半，需要从下一个单元格开始计算 因此startIndex + 1。
+             */
+            for (let colIndex = leftFirstColRestWidth ? startIndex + 1 : startIndex; colIndex < headerLength; colIndex++) {
+                const col = tableHeaderLastValue[colIndex];
+                endColWidthSum += getCalculatedColWidth(col);
+                // 列宽大于容器宽度则停止
+                if (endColWidthSum >= containerW) {
+                    endIndex = colIndex + 1; // slice endIndex + 1
                     break;
                 }
             }
+
             endIndex = Math.min(endIndex, headerLength);
             Object.assign(vsx, { startIndex, endIndex, offsetLeft, scrollLeft: sLeft });
         },
-        [virtualX, tableHeaderLast],
+        [virtualX, tableHeaderLast, getColWidthCache],
     );
 
     const initVirtualScrollY = useCallback(
@@ -676,6 +1185,142 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
         initVirtualScrollX();
     }, [initVirtualScrollY, initVirtualScrollX]);
 
+    // ===== scroll-row-by-row =====
+    const onlyDragScroll = scrollRowByRow === 'scrollbar';
+    /** 是否启用按行滚动 */
+    const isSRBRActive = onlyDragScroll ? isDragScroll : !!scrollRowByRow;
+
+    /** scroll-row-by-row 总高度 */
+    const SRBRTotalHeight = useMemo(() => {
+        if (!isSRBRActive || !virtual) return 0;
+        return dataSourceCopy.length * virtualScrollRef.current.rowHeight + tableHeaderHeight;
+    }, [isSRBRActive, virtual, dataSourceCopy, tableHeaderHeight, version]);
+
+    const SRBRBottomHeight = useMemo(() => {
+        if (!isSRBRActive || !virtual) return 0;
+        const { containerHeight, rowHeight: rh } = virtualScrollRef.current;
+        return (containerHeight - tableHeaderHeight) % rh;
+    }, [isSRBRActive, virtual, tableHeaderHeight, version]);
+
+    // ===== 自定义滚动条 =====
+    /** 更新自定义滚动条位置/尺寸 */
+    const updateCustomScrollbar = useCallback(() => {
+        if (!scrollbarOptions.enabled || isMobileDeviceRef.current) return;
+        const { scrollHeight, scrollTop, containerHeight } = virtualScrollRef.current;
+        const { scrollWidth, scrollLeft, containerWidth } = virtualScrollXRef.current;
+
+        const needVertical = scrollHeight > containerHeight;
+        const needHorizontal = scrollWidth > containerWidth;
+
+        let h = 0;
+        let w = 0;
+        let t = 0;
+        let l = 0;
+        if (needVertical) {
+            const ratio = containerHeight / scrollHeight;
+            h = Math.max(scrollbarOptions.minHeight, ratio * containerHeight);
+            t = Math.round((scrollTop / (scrollHeight - containerHeight)) * (containerHeight - h));
+        }
+        if (needHorizontal) {
+            const ratio = containerWidth / scrollWidth;
+            w = Math.max(scrollbarOptions.minWidth, ratio * containerWidth);
+            l = Math.round((scrollLeft / (scrollWidth - containerWidth)) * (containerWidth - w));
+        }
+        setShowScrollbar({ x: needHorizontal, y: needVertical });
+        setSbThumb({ h, w, t, l });
+    }, [scrollbarOptions]);
+
+    const onSbDragEnd = useCallback(() => {
+        sbDragRef.current.isVertical = false;
+        sbDragRef.current.isHorizontal = false;
+        if (sbDragHandlerRef.current) {
+            document.removeEventListener('mousemove', sbDragHandlerRef.current);
+            document.removeEventListener('touchmove', sbDragHandlerRef.current);
+            sbDragHandlerRef.current = undefined;
+        }
+        document.removeEventListener('mouseup', onSbDragEnd);
+        document.removeEventListener('touchend', onSbDragEnd);
+    }, []);
+
+    const addSbDragListeners = useCallback(
+        (dragHandler: (e: MouseEvent | TouchEvent) => void) => {
+            if (sbDragHandlerRef.current) {
+                document.removeEventListener('mousemove', sbDragHandlerRef.current);
+                document.removeEventListener('touchmove', sbDragHandlerRef.current);
+            }
+            sbDragHandlerRef.current = dragHandler;
+            document.addEventListener('mousemove', dragHandler);
+            document.addEventListener('mouseup', onSbDragEnd);
+            document.addEventListener('touchmove', dragHandler, { passive: false });
+            document.addEventListener('touchend', onSbDragEnd);
+        },
+        [onSbDragEnd],
+    );
+
+    const onVerticalSbDrag = useCallback(
+        (e: MouseEvent | TouchEvent) => {
+            if (!sbDragRef.current.isVertical) return;
+            e.preventDefault();
+            const clientY = e instanceof MouseEvent ? e.clientY : e.touches[0].clientY;
+            const deltaY = clientY - sbDragRef.current.startY;
+            const { scrollHeight, containerHeight } = virtualScrollRef.current;
+            const scrollRange = scrollHeight - containerHeight;
+            const trackRange = containerHeight - sbThumb.h;
+            const scrollDelta = (deltaY / trackRange) * scrollRange;
+
+            if (isExperimentalScrollY) {
+                const ratio = containerHeight / scrollHeight;
+                const top = Math.round((sbDragRef.current.startTop + scrollDelta) * ratio);
+                const maxTop = containerHeight - sbThumb.h;
+                setSbThumb(prev => ({ ...prev, t: top < 0 ? 0 : top > maxTop ? maxTop : top }));
+                updateVirtualScrollY(sbDragRef.current.startTop + scrollDelta);
+                setVersion(v => v + 1);
+            } else {
+                tableContainerRef.current!.scrollTop = sbDragRef.current.startTop + scrollDelta;
+            }
+        },
+        [sbThumb.h, isExperimentalScrollY, updateVirtualScrollY],
+    );
+
+    const onHorizontalSbDrag = useCallback(
+        (e: MouseEvent | TouchEvent) => {
+            if (!sbDragRef.current.isHorizontal) return;
+            e.preventDefault();
+            const clientX = e instanceof MouseEvent ? e.clientX : e.touches[0].clientX;
+            const deltaX = clientX - sbDragRef.current.startX;
+            const { scrollWidth, containerWidth } = virtualScrollXRef.current;
+            const scrollRange = scrollWidth - containerWidth;
+            const trackRange = containerWidth - sbThumb.w;
+            const scrollDelta = (deltaX / trackRange) * scrollRange;
+            tableContainerRef.current!.scrollLeft = sbDragRef.current.startLeft + scrollDelta;
+        },
+        [sbThumb.w],
+    );
+
+    const onVerticalScrollbarMouseDown = useCallback(
+        (e: React.MouseEvent | React.TouchEvent) => {
+            if (e.type === 'mousedown') e.preventDefault();
+            sbDragRef.current.isVertical = true;
+            sbDragRef.current.startTop = virtualScrollRef.current.scrollTop;
+            const native = e.nativeEvent;
+            sbDragRef.current.startY = native instanceof MouseEvent ? native.clientY : (native as TouchEvent).touches[0].clientY;
+            addSbDragListeners(onVerticalSbDrag);
+        },
+        [addSbDragListeners, onVerticalSbDrag],
+    );
+
+    const onHorizontalScrollbarMouseDown = useCallback(
+        (e: React.MouseEvent | React.TouchEvent) => {
+            if (e.type === 'mousedown') e.preventDefault();
+            sbDragRef.current.isHorizontal = true;
+            sbDragRef.current.startLeft = virtualScrollXRef.current.scrollLeft;
+            const native = e.nativeEvent;
+            sbDragRef.current.startX = native instanceof MouseEvent ? native.clientX : (native as TouchEvent).touches[0].clientX;
+            addSbDragListeners(onHorizontalSbDrag);
+        },
+        [addSbDragListeners, onHorizontalSbDrag],
+    );
+
     // Scroll to
     const scrollTo = useCallback(
         (top: number | null = 0, left: number | null = 0) => {
@@ -693,6 +1338,792 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
         },
         [isExperimentalScrollY, updateVirtualScrollY],
     );
+
+    // ==================== 区域选取 (area selection) ====================
+    /** areaSelection 配置归一化 */
+    const areaSelectionConfig = useMemo<AreaSelectionConfig>(() => {
+        if (typeof areaSelection === 'boolean') {
+            const b = areaSelection;
+            return { enabled: b, keyboard: b, ctrl: b, shift: b, highlight: { cell: b, row: false } };
+        }
+        const { highlight: userHighlight, ...restConfig } = areaSelection || {};
+        return {
+            enabled: true,
+            ctrl: true,
+            shift: true,
+            highlight: {
+                cell: true,
+                row: false,
+                ...userHighlight,
+            },
+            ...restConfig,
+        };
+    }, [areaSelection]);
+
+    const [isAreaSelecting, setIsAreaSelecting] = useState(false);
+    const isAreaSelectingRef = useRef(false);
+    const selectionRangesRef = useRef<AreaSelectionRange[]>([]);
+    const anchorCellRef = useRef<{ rowIndex: number; colIndex: number } | null>(null);
+    const autoScrollRafIdRef = useRef(0);
+    const lastMouseRef = useRef({ x: 0, y: 0 });
+    const selectedCellKeysRef = useRef<Set<string>>(new Set());
+    const areaSelDocListenersRef = useRef<{ mm: (e: MouseEvent) => void; mu: () => void } | null>(null);
+
+    /** colKey → 绝对索引映射 */
+    const colKeyToIndexMap = useMemo(() => {
+        const map = new Map<string, number>();
+        for (let i = 0; i < tableHeaderLast.length; i++) {
+            map.set(colKeyGen(tableHeaderLast[i]), i);
+        }
+        return map;
+    }, [tableHeaderLast, colKeyGen]);
+
+    /**
+     * 预计算每个列索引位置对应的左右固定列累计宽度
+     * @returns (colIndex) => [leftFixedWidth, rightFixedWidth]
+     */
+    const getFixedColWidths = useMemo(() => {
+        const cols = tableHeaderLast;
+        const leftWidths: number[] = new Array(cols.length + 1).fill(0);
+        const rightWidths: number[] = new Array(cols.length + 1).fill(0);
+
+        let leftSum = 0;
+        for (let i = 0; i < cols.length; i++) {
+            leftWidths[i] = leftSum;
+            if (cols[i]?.fixed === 'left') {
+                leftSum += getCalculatedColWidth(cols[i]);
+            }
+        }
+        leftWidths[cols.length] = leftSum;
+
+        let rightSum = 0;
+        for (let i = cols.length - 1; i >= 0; i--) {
+            rightWidths[i] = rightSum;
+            if (cols[i]?.fixed === 'right') {
+                rightSum += getCalculatedColWidth(cols[i]);
+            }
+        }
+
+        return (colIndex: number) => {
+            return [leftWidths[colIndex] ?? 0, rightWidths[colIndex + 1] ?? 0] as const;
+        };
+    }, [tableHeaderLast]);
+
+    function emitSelectionChange() {
+        onAreaSelectionChange?.(selectionRangesRef.current);
+    }
+
+    /**
+     * 直接操作 DOM 更新选区样式（不触发 React re-render）
+     * 避免拖选时频繁触发整个表格重渲染
+     */
+    function updateSelectionDOM() {
+        const container = tableContainerRef.current;
+        if (!container) return;
+
+        const cellHighlight = areaSelectionConfig.highlight?.cell;
+        const rowHighlight = areaSelectionConfig.highlight?.row;
+
+        // 1. 清除所有旧的选区 class
+        const oldSelectedCells = container.querySelectorAll(`.${CELL_RANGE_SELECTED}`);
+        for (let i = 0; i < oldSelectedCells.length; i++) {
+            const el = oldSelectedCells[i] as HTMLElement;
+            el.classList.remove(CELL_RANGE_SELECTED, CELL_RANGE_TOP, CELL_RANGE_BOTTOM, CELL_RANGE_LEFT, CELL_RANGE_RIGHT);
+        }
+        const oldSelectedRows = container.querySelectorAll(`.${ROW_RANGE_SELECTED}`);
+        for (let i = 0; i < oldSelectedRows.length; i++) {
+            (oldSelectedRows[i] as HTMLElement).classList.remove(ROW_RANGE_SELECTED);
+        }
+
+        // 2. 重算 selectedCellKeys
+        const ranges = selectionRangesRef.current;
+        const keys = new Set<string>();
+        if (ranges.length) {
+            for (const range of ranges) {
+                const { minRow, maxRow, minCol, maxCol } = normalizeRange(range);
+                for (let r = minRow; r <= maxRow; r++) {
+                    const row = dataSourceCopy[r];
+                    if (!row) continue;
+                    for (let c = minCol; c <= maxCol; c++) {
+                        const col = tableHeaderLast[c];
+                        if (col) keys.add(cellKeyGen(row, col));
+                    }
+                }
+            }
+        }
+        selectedCellKeysRef.current = keys;
+
+        if (!ranges.length) return;
+
+        const tbody = container.querySelector('.stk-tbody-main');
+        if (!tbody) return;
+
+        // 3. 应用行高亮 class
+        if (rowHighlight) {
+            for (const range of ranges) {
+                const { minRow, maxRow } = normalizeRange(range);
+                for (let r = minRow; r <= maxRow; r++) {
+                    const tr = tbody.querySelector(`tr[data-row-i="${r}"]`) as HTMLElement | null;
+                    if (tr) tr.classList.add(ROW_RANGE_SELECTED);
+                }
+            }
+        }
+
+        // 4. 应用单元格高亮 class
+        if (cellHighlight) {
+            const lastRange = ranges[ranges.length - 1];
+            const { minRow: lrMinRow, maxRow: lrMaxRow, minCol: lrMinCol, maxCol: lrMaxCol } = normalizeRange(lastRange);
+
+            // 遍历所有可见行
+            const trs = tbody.querySelectorAll('tr[data-row-i]');
+            for (let t = 0; t < trs.length; t++) {
+                const tr = trs[t] as HTMLElement;
+                const rowIndex = parseInt(tr.getAttribute('data-row-i')!, 10);
+
+                // 检查此行是否在任何选区内
+                let inAnyRange = false;
+                for (const range of ranges) {
+                    const { minRow, maxRow } = normalizeRange(range);
+                    if (rowIndex >= minRow && rowIndex <= maxRow) {
+                        inAnyRange = true;
+                        break;
+                    }
+                }
+                if (!inAnyRange) continue;
+
+                // 遍历此行中的单元格
+                const tds = tr.querySelectorAll('td[data-col-key]');
+                for (let d = 0; d < tds.length; d++) {
+                    const td = tds[d] as HTMLElement;
+                    const colKey = td.getAttribute('data-col-key')!;
+                    const colIndex = colKeyToIndexMap.get(colKey);
+                    if (colIndex === void 0 || colIndex < 0) continue;
+
+                    // 生成 cellKey 检查是否在选区内
+                    const row = dataSourceCopy[rowIndex];
+                    const col = tableHeaderLast[colIndex];
+                    if (!row || !col) continue;
+                    const ck = cellKeyGen(row, col);
+                    if (!keys.has(ck)) continue;
+
+                    td.classList.add(CELL_RANGE_SELECTED);
+
+                    // 判断是否在最后一个区域的边界
+                    const isInLastRange = rowIndex >= lrMinRow && rowIndex <= lrMaxRow && colIndex >= lrMinCol && colIndex <= lrMaxCol;
+                    if (isInLastRange) {
+                        if (rowIndex === lrMinRow) td.classList.add(CELL_RANGE_TOP);
+                        if (rowIndex === lrMaxRow) td.classList.add(CELL_RANGE_BOTTOM);
+                        if (colIndex === lrMinCol) td.classList.add(CELL_RANGE_LEFT);
+                        if (colIndex === lrMaxCol) td.classList.add(CELL_RANGE_RIGHT);
+                    }
+                }
+            }
+        }
+    }
+
+    /** 更新最后一个选区的终点（拖拽过程中） */
+    function updateSelectionEnd(endRowIndex: number, endColIndex: number) {
+        const anchor = anchorCellRef.current;
+        if (!anchor) return;
+        const newRange = makeRange(anchor.rowIndex, anchor.colIndex, endRowIndex, endColIndex);
+        const ranges = [...selectionRangesRef.current];
+        if (ranges.length > 0) {
+            ranges[ranges.length - 1] = newRange;
+        } else {
+            ranges.push(newRange);
+        }
+        selectionRangesRef.current = ranges;
+        updateSelectionDOM();
+    }
+
+    /** 从 MouseEvent 目标元素更新选区 */
+    function updateSelectionFromEvent(e: MouseEvent) {
+        const target = e.target as HTMLElement;
+        if (!target) return;
+
+        const rowIndex = getClosestTrIndex(target);
+        if (Number.isNaN(rowIndex) || rowIndex < 0) return;
+
+        const colKey = getClosestColKey(target);
+        const colIndex = colKey ? colKeyToIndexMap.get(colKey) ?? -1 : -1;
+        if (colIndex < 0) return;
+
+        updateSelectionEnd(rowIndex, colIndex);
+    }
+
+    // ---- 边界自动滚动 ----
+
+    /** 停止自动滚动 */
+    function stopAutoScroll() {
+        if (autoScrollRafIdRef.current) {
+            cancelAnimationFrame(autoScrollRafIdRef.current);
+            autoScrollRafIdRef.current = 0;
+        }
+    }
+
+    /** 将鼠标位置钳制到容器内部，用 elementFromPoint 找到边缘单元格并更新选区 */
+    function updateSelectionFromPoint(container: HTMLElement, containerRect: DOMRect) {
+        // 获取表头高度，钳制 Y 时跳过表头区域
+        const thead = container.querySelector('thead');
+        const { top, bottom, left, right } = containerRect;
+
+        const headerBottom = thead ? top + (thead as HTMLElement).offsetHeight : top;
+
+        const x = Math.max(left + POINT_EDGE_OFFSET, Math.min(lastMouseRef.current.x, right - POINT_EDGE_OFFSET));
+        const y = Math.max(headerBottom + POINT_EDGE_OFFSET, Math.min(lastMouseRef.current.y, bottom - POINT_EDGE_OFFSET));
+
+        const el = document.elementFromPoint(x, y);
+        if (!el) return;
+
+        const td = getClosestTd(el as HTMLElement);
+        const tr = getClosestTr(el as HTMLElement);
+        if (!td || !tr) return;
+
+        const rowIndex = getClosestTrIndex(tr as HTMLElement);
+        const colKey = getClosestColKey(td as HTMLElement);
+        const colIndex = colKey ? colKeyToIndexMap.get(colKey) ?? -1 : -1;
+
+        if (Number.isNaN(rowIndex) || rowIndex < 0 || colIndex < 0) return;
+
+        updateSelectionEnd(rowIndex, colIndex);
+    }
+
+    /** rAF 循环：边界自动滚动 + 更新选区 */
+    function autoScrollLoop() {
+        const container = tableContainerRef.current;
+        if (!container || !isAreaSelectingRef.current) {
+            stopAutoScroll();
+            return;
+        }
+
+        const rect = container.getBoundingClientRect();
+        const { deltaX, deltaY } = calculateAutoScrollDelta(lastMouseRef.current.x, lastMouseRef.current.y, rect);
+
+        if (deltaX !== 0 || deltaY !== 0) {
+            container.scrollTop += deltaY;
+            container.scrollLeft += deltaX;
+
+            // 滚动后，在容器内边缘处用 elementFromPoint 找到当前单元格更新选区
+            updateSelectionFromPoint(container, rect);
+        }
+
+        // 如果还在拖选且仍需滚动，继续循环
+        if (isAreaSelectingRef.current && (deltaX !== 0 || deltaY !== 0)) {
+            autoScrollRafIdRef.current = requestAnimationFrame(autoScrollLoop);
+        } else {
+            autoScrollRafIdRef.current = 0;
+        }
+    }
+
+    /** 检查鼠标是否在容器边缘附近，启动或停止自动滚动 */
+    function checkAutoScroll() {
+        const container = tableContainerRef.current;
+        if (!container) return;
+
+        const rect = container.getBoundingClientRect();
+        const { top, bottom, left, right } = rect;
+
+        const nearEdge =
+            lastMouseRef.current.y < top + EDGE_ZONE ||
+            lastMouseRef.current.y > bottom - EDGE_ZONE ||
+            lastMouseRef.current.x < left + EDGE_ZONE ||
+            lastMouseRef.current.x > right - EDGE_ZONE;
+
+        if (nearEdge && !autoScrollRafIdRef.current) {
+            autoScrollLoop();
+        } else if (!nearEdge && autoScrollRafIdRef.current) {
+            stopAutoScroll();
+        }
+    }
+
+    /** document mousemove 处理：更新选区终点 + 检测边界自动滚动 */
+    function onDocumentMouseMove(e: MouseEvent) {
+        if (!isAreaSelectingRef.current) return;
+
+        lastMouseRef.current = { x: e.clientX, y: e.clientY };
+
+        // 尝试从当前鼠标位置更新选区
+        updateSelectionFromEvent(e);
+
+        // 检测是否需要边界自动滚动
+        checkAutoScroll();
+    }
+
+    /** document mouseup 处理：结束拖选 */
+    function onDocumentMouseUp() {
+        if (!isAreaSelectingRef.current) return;
+        isAreaSelectingRef.current = false;
+        setIsAreaSelecting(false);
+        stopAutoScroll();
+
+        const l = areaSelDocListenersRef.current;
+        if (l) {
+            document.removeEventListener('mousemove', l.mm);
+            document.removeEventListener('mouseup', l.mu);
+            areaSelDocListenersRef.current = null;
+        }
+
+        // 发出事件
+        emitSelectionChange();
+    }
+
+    /** mousedown 处理：设置锚点，开始拖选 */
+    function onSelectionMouseDown(e: MouseEvent) {
+        if (!areaSelectionConfig.enabled || e.button !== 0) return;
+
+        const rowIndex = getClosestTrIndex(e.target as HTMLElement);
+        const colKey = getClosestColKey(e.target as HTMLElement);
+        const colIndex = colKey ? colKeyToIndexMap.get(colKey) ?? -1 : -1;
+
+        if (Number.isNaN(rowIndex) || rowIndex < 0 || colIndex < 0) return;
+
+        const ctrlKey = e.ctrlKey || e.metaKey;
+
+        const range = makeRange(rowIndex, colIndex, rowIndex, colIndex);
+        // Shift 扩选：从锚点扩展到当前位置，更新最后一个区域
+        if (e.shiftKey && anchorCellRef.current && areaSelectionConfig.shift) {
+            const ranges = selectionRangesRef.current.slice();
+            const shiftRange = makeRange(anchorCellRef.current.rowIndex, anchorCellRef.current.colIndex, rowIndex, colIndex);
+            if (ranges.length) {
+                ranges[ranges.length - 1] = shiftRange;
+            } else {
+                ranges.push(shiftRange);
+            }
+            selectionRangesRef.current = ranges;
+        } else {
+            anchorCellRef.current = { rowIndex, colIndex };
+            if (ctrlKey && areaSelectionConfig.ctrl) {
+                // Ctrl 多选
+                selectionRangesRef.current = selectionRangesRef.current.concat([range]);
+            } else {
+                // 普通点击
+                selectionRangesRef.current = [range];
+            }
+        }
+
+        isAreaSelectingRef.current = true;
+        setIsAreaSelecting(true);
+        lastMouseRef.current = { x: e.clientX, y: e.clientY };
+        updateSelectionDOM();
+
+        // 防止拖选时选中文字
+        const mm = onDocumentMouseMove;
+        const mu = onDocumentMouseUp;
+        areaSelDocListenersRef.current = { mm, mu };
+        document.addEventListener('mousemove', mm);
+        document.addEventListener('mouseup', mu);
+    }
+
+    /** 始终指向最新的 onSelectionMouseDown，避免事件回调闭包过期 */
+    const onSelectionMouseDownRef = useRef(onSelectionMouseDown);
+    onSelectionMouseDownRef.current = onSelectionMouseDown;
+
+    /** 获取列的左边距和宽度
+     * @param colIndex 列的绝对索引
+     * @returns [left, width]
+     */
+    function getColPosition(colIndex: number): [number, number] {
+        let left = 0;
+        for (let i = 0; i < tableHeaderLast.length; i++) {
+            const colWidth = getCalculatedColWidth(tableHeaderLast[i]);
+            if (i === colIndex) return [left, colWidth];
+            left += colWidth;
+        }
+        return [left, 0];
+    }
+
+    /**
+     * 滚动到指定单元格，确保其在可视区域内
+     * @param rowIndex 行索引
+     * @param colIndex 列索引
+     */
+    function scrollToCell(rowIndex: number, colIndex: number) {
+        const container = tableContainerRef.current;
+        if (!container) return;
+
+        const row = dataSourceCopy[rowIndex];
+        const col = tableHeaderLast[colIndex];
+        if (!row || !col) return;
+
+        const thead = container.querySelector('thead');
+        const headerHeight = thead ? (thead as HTMLElement).offsetHeight : 0;
+        const tfoot = container.querySelector('tfoot');
+        const footerHeight = tfoot ? (tfoot as HTMLElement).offsetHeight : 0;
+
+        const vs = virtualScrollRef.current;
+        const vsx = virtualScrollXRef.current;
+
+        // 是否开启按行滚动模式
+        const isScrollRowByRow = scrollRowByRow;
+
+        // 计算目标行的位置（基于虚拟滚动数据）
+        const rh = vs.rowHeight;
+        const targetRowTop = rowIndex * rh;
+        const targetRowBottom = targetRowTop + rh;
+
+        // 计算可视区域
+        // experimental.scrollY 模式下，容器 scrollTop 始终为 0，需要使用 virtualScroll.scrollTop
+        const visibleTop = isScrollRowByRow ? vs.scrollTop : container.scrollTop;
+        const visibleBottom = visibleTop + vs.containerHeight - headerHeight - footerHeight;
+
+        // 计算需要的垂直滚动位置
+        let newScrollTop: number | null = null;
+        if (targetRowTop < visibleTop) {
+            // 目标行在可视区域上方，滚动到使目标行位于顶部
+            newScrollTop = targetRowTop;
+        } else if (targetRowBottom > visibleBottom) {
+            // 目标行在可视区域下方
+            newScrollTop = targetRowBottom - (vs.containerHeight - headerHeight - footerHeight);
+        }
+
+        // 计算目标列的位置
+        const [targetColLeft, targetColWidth] = getColPosition(colIndex);
+        const targetColRight = targetColLeft + targetColWidth;
+
+        // 计算可视区域（水平）
+        const visibleLeft = container.scrollLeft;
+        const visibleRight = visibleLeft + vsx.containerWidth;
+
+        // 计算固定列的宽度（用于检测遮挡）
+        const [leftFixedWidth, rightFixedWidth] = getFixedColWidths(colIndex);
+        let newScrollLeft: number | null = null;
+        if (targetColLeft < visibleLeft + leftFixedWidth) {
+            // 目标列在左侧固定列遮挡区域内，需要向左滚动
+            newScrollLeft = targetColLeft - leftFixedWidth;
+        } else if (targetColRight > visibleRight - rightFixedWidth) {
+            // 目标列在右侧固定列遮挡区域内，需要向右滚动
+            newScrollLeft = targetColRight - vsx.containerWidth + rightFixedWidth;
+        }
+
+        if (newScrollTop !== null || newScrollLeft !== null) {
+            scrollTo(newScrollTop, newScrollLeft);
+        }
+    }
+
+    function blurCellElement() {
+        // 防止虚拟滚动移除 DOM 时焦点被动丢失，导致后续 keydown 无法冒泡到容器
+        const container = tableContainerRef.current;
+        const activeEl = document.activeElement as HTMLElement | null;
+        if (container && activeEl && container.contains(activeEl) && activeEl !== container) {
+            container.focus({ preventScroll: true });
+        }
+    }
+
+    /**
+     * 区域选取键盘事件
+     * Ctrl+C / Cmd+C 复制；Esc 取消；方向键 / Tab 移动（keyboard=true 时）
+     */
+    function onAreaSelectionKeydown(e: React.KeyboardEvent) {
+        if (!areaSelectionConfig.enabled) return;
+
+        const key = e.key;
+
+        // Esc：取消
+        if (key === KEY_ESCAPE || key === KEY_ESC) {
+            blurCellElement();
+            if (selectionRangesRef.current.length) {
+                e.preventDefault();
+            }
+            return;
+        }
+
+        // Ctrl/Cmd+C 复制
+        if ((e.ctrlKey || e.metaKey) && key === KEY_C && selectionRangesRef.current.length) {
+            copySelectedArea();
+            e.preventDefault();
+            return;
+        }
+
+        if (!areaSelectionConfig.keyboard) return;
+
+        const isArrowKey = [KEY_ARROW_UP, KEY_ARROW_DOWN, KEY_ARROW_LEFT, KEY_ARROW_RIGHT].includes(key);
+        const isTabKey = key === KEY_TAB;
+        const isNavigationKey = isArrowKey || isTabKey;
+
+        if (!isNavigationKey) return;
+
+        e.preventDefault();
+
+        const rowCount = dataSourceCopy.length;
+        const colCount = tableHeaderLast.length;
+        if (rowCount === 0 || colCount === 0) return;
+
+        // 如果没有选区，默认从第一个单元格开始
+        if (!selectionRangesRef.current.length) {
+            anchorCellRef.current = { rowIndex: 0, colIndex: 0 };
+            selectionRangesRef.current = [makeRange(0, 0, 0, 0)];
+            updateSelectionDOM();
+            emitSelectionChange();
+            scrollToCell(0, 0);
+            return;
+        }
+
+        // 计算移动方向
+        const [rowDelta, colDelta] = getMovementDelta(key, e.shiftKey);
+
+        // Shift 扩展选区，否则移动单格选区
+        if (e.shiftKey && isArrowKey && areaSelectionConfig.shift) {
+            blurCellElement();
+            // 扩展选区：保留 begin，更新最后一个区域的 end
+            const ranges = [...selectionRangesRef.current];
+            const range = ranges.length > 0 ? ranges[ranges.length - 1] : null;
+            if (!range) return;
+            const { begin, end } = range.index;
+            let newEndRow = end.row + rowDelta;
+            let newEndCol = end.col + colDelta;
+
+            // 边界检查
+            newEndRow = clampNum(newEndRow, 0, rowCount - 1);
+            newEndCol = clampNum(newEndCol, 0, colCount - 1);
+
+            ranges[ranges.length - 1] = makeRange(begin.row, begin.col, newEndRow, newEndCol);
+            selectionRangesRef.current = ranges;
+            updateSelectionDOM();
+
+            scrollToCell(newEndRow, newEndCol);
+        } else {
+            blurCellElement();
+            // 移动单格选区：取最后一个区域的 min 位置作为基础，清空旧选区重建
+            const ranges = selectionRangesRef.current;
+            const range = ranges.length > 0 ? ranges[ranges.length - 1] : null;
+            const baseRow = range ? normalizeRange(range).minRow : 0;
+            const baseCol = range ? normalizeRange(range).minCol : 0;
+            let newRow = baseRow + rowDelta;
+            let newCol = baseCol + colDelta;
+
+            // 边界检查（先检查，避免越界）
+            newRow = clampNum(newRow, 0, rowCount - 1);
+            newCol = clampNum(newCol, 0, colCount - 1);
+
+            // Tab 换行逻辑：如果到达行尾/行首，换行
+            if (isTabKey) {
+                // 计算原始未 clamp 的值
+                const rawCol = baseCol + colDelta;
+                const [tabRow, tabCol] = handleTabWrap(baseRow, newCol, rawCol, rowCount, colCount);
+                newRow = tabRow;
+                newCol = tabCol;
+            }
+
+            // 更新锚点和选区（移动单格时清空其他区域，仅保留新位置）
+            anchorCellRef.current = { rowIndex: newRow, colIndex: newCol };
+            selectionRangesRef.current = [makeRange(newRow, newCol, newRow, newCol)];
+            updateSelectionDOM();
+
+            scrollToCell(newRow, newCol);
+        }
+
+        emitSelectionChange();
+    }
+
+    /**
+     * 复制选区内容到剪贴板，只复制最后一个选区
+     * @returns text
+     */
+    function copySelectedArea(): string {
+        const ranges = selectionRangesRef.current;
+        if (!ranges.length) return '';
+
+        const range = ranges[ranges.length - 1];
+        const { minRow, maxRow, minCol, maxCol } = normalizeRange(range);
+        const formatCell = areaSelectionConfig.formatCellForClipboard;
+
+        const lines: string[] = [];
+        for (let r = minRow; r <= maxRow; r++) {
+            const row = dataSourceCopy[r];
+            if (!row) continue;
+
+            const cells: string[] = [];
+            for (let c = minCol; c <= maxCol; c++) {
+                const col = tableHeaderLast[c];
+                if (!col) {
+                    cells.push('');
+                    continue;
+                }
+                const rawValue = row[col.dataIndex];
+                cells.push(formatCell ? formatCell(row, col, rawValue) : !rawValue ? '' : String(rawValue));
+            }
+            lines.push(cells.join('\t'));
+        }
+        const text = lines.join('\n');
+
+        navigator.clipboard.writeText(text).catch(() => {
+            console.warn('Failed to copy to clipboard');
+        });
+
+        return text;
+    }
+
+    /** 获取选中的单元格信息 */
+    function getSelectedArea() {
+        const ranges = selectionRangesRef.current;
+        if (!ranges.length) return { rows: [] as DT[], cols: [] as StkTableColumn<DT>[], ranges: [] as AreaSelectionRange[] };
+        // 收集所有区域的行和列
+        const rowSet = new Set<number>();
+        const colSet = new Set<number>();
+        for (const range of ranges) {
+            const { minRow, maxRow, minCol, maxCol } = normalizeRange(range);
+            for (let r = minRow; r <= maxRow; r++) rowSet.add(r);
+            for (let c = minCol; c <= maxCol; c++) colSet.add(c);
+        }
+        const sortedRows = [...rowSet].sort((a, b) => a - b);
+        const sortedCols = [...colSet].sort((a, b) => a - b);
+        return {
+            rows: sortedRows.map(i => dataSourceCopy[i]).filter(Boolean),
+            cols: sortedCols.map(i => tableHeaderLast[i]).filter(Boolean),
+            ranges: ranges.map(r => ({ ...r })),
+        };
+    }
+
+    function clearSelectedArea() {
+        selectionRangesRef.current = [];
+        isAreaSelectingRef.current = false;
+        setIsAreaSelecting(false);
+        updateSelectionDOM();
+    }
+
+    const getRowIndexFn = (row: DT) => {
+        const targetKey = rowKeyGen(row);
+        return dataSourceCopy.findIndex(item => rowKeyGen(item) === targetKey);
+    };
+
+    const getColumnIndexFn = (column: any) => {
+        const targetKey = colKeyGen(column);
+        return tableHeaderLast.findIndex(item => colKeyGen(item) === targetKey);
+    };
+
+    function setAreaSelection(ranges?: AreaSelectionSetterRange<DT>, option: AreaSelectionSetterOption = {}): AreaSelectionRange[] {
+        if (!areaSelectionConfig.enabled) return selectionRangesRef.current;
+
+        const { silent = false, scrollToView = false } = option;
+        const rowCount = dataSourceCopy.length;
+        const colCount = tableHeaderLast.length;
+
+        if (rowCount <= 0 || colCount <= 0) {
+            clearSelectedArea();
+            if (!silent) emitSelectionChange();
+            return selectionRangesRef.current;
+        }
+
+        const maxRow = rowCount - 1;
+        const maxCol = colCount - 1;
+
+        let beginRow = 0;
+        let endRow = maxRow;
+        let beginCol = 0;
+        let endCol = maxCol;
+
+        if (ranges) {
+            const begin = ranges.begin;
+            const end = ranges.end ?? begin;
+
+            beginRow = typeof begin.row === 'number' ? begin.row : getRowIndexFn(begin.row);
+            endRow = typeof end.row === 'number' ? end.row : getRowIndexFn(end.row);
+
+            const beginColInput = typeof begin.col === 'number' ? begin.col : begin.col ? getColumnIndexFn(begin.col) : void 0;
+            const endColInput = typeof end.col === 'number' ? end.col : end.col ? getColumnIndexFn(end.col) : void 0;
+
+            if (beginColInput !== void 0) {
+                beginCol = beginColInput;
+                endCol = endColInput !== void 0 ? endColInput : beginColInput;
+            } else if (endColInput !== void 0) {
+                beginCol = 0;
+                endCol = endColInput;
+            }
+        }
+
+        beginRow = clampNum(beginRow, 0, maxRow);
+        endRow = clampNum(endRow, 0, maxRow);
+        beginCol = clampNum(beginCol, 0, maxCol);
+        endCol = clampNum(endCol, 0, maxCol);
+
+        selectionRangesRef.current = [makeRange(beginRow, beginCol, endRow, endCol)];
+        anchorCellRef.current = { rowIndex: beginRow, colIndex: beginCol };
+        isAreaSelectingRef.current = false;
+        setIsAreaSelecting(false);
+        updateSelectionDOM();
+
+        if (scrollToView) {
+            scrollToCell(endRow, endCol);
+        }
+
+        if (!silent) emitSelectionChange();
+        return selectionRangesRef.current;
+    }
+
+    // 虚拟滚动等导致 DOM 重建后，重新应用选区样式
+    useEffect(() => {
+        updateSelectionDOM();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [version, dataSourceCopy, tableHeaderLast, areaSelectionConfig, colKeyToIndexMap]);
+
+    // 卸载时清理拖选监听与自动滚动
+    useEffect(() => {
+        return () => {
+            const l = areaSelDocListenersRef.current;
+            if (l) {
+                document.removeEventListener('mousemove', l.mm);
+                document.removeEventListener('mouseup', l.mu);
+                areaSelDocListenersRef.current = null;
+            }
+            if (autoScrollRafIdRef.current) {
+                cancelAnimationFrame(autoScrollRafIdRef.current);
+                autoScrollRafIdRef.current = 0;
+            }
+        };
+    }, []);
+
+    // 监听数据行数/列数变化，当行列变少时钳制选区与锚点，避免越界
+    useEffect(() => {
+        if (!areaSelectionConfig.enabled) return;
+
+        const rowCount = dataSourceCopy.length;
+        const colCount = tableHeaderLast.length;
+
+        // 钳制锚点
+        const anchor = anchorCellRef.current;
+        if (anchor) {
+            if (rowCount === 0 || colCount === 0) {
+                anchorCellRef.current = null;
+            } else {
+                anchor.rowIndex = clampNum(anchor.rowIndex, 0, rowCount - 1);
+                anchor.colIndex = clampNum(anchor.colIndex, 0, colCount - 1);
+            }
+        }
+
+        const ranges = selectionRangesRef.current;
+        if (!ranges.length) return;
+
+        // 行或列为 0 时清空选区
+        if (rowCount === 0 || colCount === 0) {
+            clearSelectedArea();
+            emitSelectionChange();
+            return;
+        }
+
+        const maxRow = rowCount - 1;
+        const maxCol = colCount - 1;
+        let changed = false;
+        const newRanges: AreaSelectionRange[] = [];
+        for (const range of ranges) {
+            const { begin, end } = range.index;
+            const nbRow = clampNum(begin.row, 0, maxRow);
+            const nbCol = clampNum(begin.col, 0, maxCol);
+            const neRow = clampNum(end.row, 0, maxRow);
+            const neCol = clampNum(end.col, 0, maxCol);
+            if (nbRow !== begin.row || nbCol !== begin.col || neRow !== end.row || neCol !== end.col) {
+                changed = true;
+                newRanges.push(makeRange(nbRow, nbCol, neRow, neCol));
+            } else {
+                newRanges.push(range);
+            }
+        }
+
+        if (changed) {
+            selectionRangesRef.current = newRanges;
+            emitSelectionChange();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dataSourceCopy.length, tableHeaderLast.length]);
 
     // Scroll handler
     const onTableScroll = useCallback(
@@ -718,6 +2149,7 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                     } else {
                         virtualScrollXRef.current.scrollLeft = scrollLeft;
                     }
+                    updateFixedShadow();
                     setVersion(v => v + 1);
                 }
                 if (isYScroll) {
@@ -727,9 +2159,10 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                 if (isXScroll) {
                     onScrollX?.(e.nativeEvent);
                 }
+                updateCustomScrollbar();
             });
         },
-        [isExperimentalScrollY, virtualX_on, updateVirtualScrollY, updateVirtualScrollX, onScroll, onScrollX],
+        [isExperimentalScrollY, virtualX_on, updateVirtualScrollY, updateVirtualScrollX, updateFixedShadow, onScroll, onScrollX, updateCustomScrollbar],
     );
 
     // Wheel handler
@@ -753,6 +2186,7 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                 }
                 if (isExperimentalScrollY) {
                     updateVirtualScrollY(scrollTop + deltaY);
+                    updateCustomScrollbar();
                     setVersion(v => v + 1);
                 } else {
                     dom.scrollTop += deltaY;
@@ -764,7 +2198,7 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                 dom.scrollLeft += distance;
             }
         },
-        [smoothScroll, isColResizing, virtual_on, virtualX_on, isExperimentalScrollY, updateVirtualScrollY],
+        [smoothScroll, isColResizing, virtual_on, virtualX_on, isExperimentalScrollY, updateVirtualScrollY, updateCustomScrollbar],
     );
 
     // Sort handler
@@ -963,6 +2397,9 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
             const colKeyVal = getClosestColKey(e.target as HTMLElement);
             const col = tableHeaderLast.find(item => colKeyGen(item) === colKeyVal) as any;
             onCellMousedown?.(e, row, col, { rowIndex });
+
+            // 区域选取：设置锚点并开始拖选
+            onSelectionMouseDownRef.current(e.nativeEvent);
         },
         [dataSourceCopy, tableHeaderLast, colKeyGen, onCellMousedown],
     );
@@ -1290,29 +2727,7 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
     }, [colResizable, isColResizing, colMinWidth, colKeyGen, tableHeaderLast, columns, onUpdateColumns, onColResize]);
 
     // Highlight
-    const setHighlightDimRow = useCallback(
-        (rowKeyValues: UniqKey[], option: any = {}) => {
-            if (!Array.isArray(rowKeyValues)) rowKeyValues = [rowKeyValues];
-            const duration = highlightConfig.duration ? highlightConfig.duration * 1000 : 2000;
-            const keyframe: PropertyIndexedKeyframes = { backgroundColor: [theme === 'dark' ? '#1e4c99' : '#71a2fd', ''] };
-            for (const rowKeyValue of rowKeyValues) {
-                const rowEl = document.getElementById(stkTableId + '-' + String(rowKeyValue));
-                if (rowEl) rowEl.animate(keyframe, duration);
-            }
-        },
-        [highlightConfig, theme, stkTableId],
-    );
-
-    const setHighlightDimCell = useCallback(
-        (rowKeyValue: UniqKey, colKeyValue: string, option: any = {}) => {
-            const cellEl = tableContainerRef.current?.querySelector<HTMLElement>(`[data-row-key="${rowKeyValue}"] [data-col-key="${colKeyValue}"]`);
-            if (!cellEl) return;
-            const duration = highlightConfig.duration ? highlightConfig.duration * 1000 : 2000;
-            const keyframe: PropertyIndexedKeyframes = { backgroundColor: [theme === 'dark' ? '#1e4c99' : '#71a2fd', ''] };
-            cellEl.animate(keyframe, duration);
-        },
-        [highlightConfig, theme],
-    );
+    const [setHighlightDimRow, setHighlightDimCell] = useHighlight(highlightConfig, theme, stkTableId, tableContainerRef);
 
     // Set current row
     const setCurrentRow = useCallback(
@@ -1353,29 +2768,34 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
     const setSorter = useCallback(
         (colKeyVal: string, order: Order, option: any = {}) => {
             const { silent = true, sort = true } = option;
+            let newStates: SortState<DT>[] = [];
             if (order) {
                 const column = tableHeaderLast.find(it => colKeyGen(it) === colKeyVal);
                 if (column) {
-                    const newState: SortState<DT> = {
-                        key: colKeyVal,
-                        dataIndex: column.dataIndex,
-                        sortField: column.sortField,
-                        sortType: column.sortType,
-                        order,
-                    };
-                    setSortStates([newState]);
+                    newStates = [
+                        {
+                            key: colKeyVal,
+                            dataIndex: column.dataIndex,
+                            sortField: column.sortField,
+                            sortType: column.sortType,
+                            order,
+                        },
+                    ];
                 }
-            } else {
-                setSortStates([]);
             }
+            setSortStates(newStates);
             if (sort && dataSource.length) {
                 if (!sortRemote || option.force) {
-                    initDataSource(dataSource, { forceSort: option.force });
+                    // 使用新状态同步排序，避免 setSortStates 异步导致用旧状态排序
+                    let data = sortData(dataSource.slice(), newStates);
+                    if (isTreeData) data = flatTreeData(data);
+                    data = filterDataSource(data);
+                    setDataSourceCopy(data);
                 }
             }
             return dataSourceCopy;
         },
-        [tableHeaderLast, colKeyGen, dataSource, sortRemote, initDataSource, dataSourceCopy],
+        [tableHeaderLast, colKeyGen, dataSource, sortRemote, sortData, isTreeData, flatTreeData, filterDataSource, dataSourceCopy],
     );
 
     const resetSorter = useCallback(() => {
@@ -1475,17 +2895,27 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
         initDataSource();
     }, [dataSource]);
 
+    // 数据变化后更新虚拟滚动参数与自定义滚动条
+    useEffect(() => {
+        updateVirtualScrollY(virtualScrollRef.current.scrollTop);
+        updateCustomScrollbar();
+    }, [dataSourceCopy, updateVirtualScrollY, updateCustomScrollbar]);
+
     useEffect(() => {
         dealColumns(columns);
         setVersion(v => v + 1);
         requestAnimationFrame(() => {
             initVirtualScrollX();
+            updateCustomScrollbar();
         });
     }, [columns]);
 
     useEffect(() => {
         requestAnimationFrame(() => {
             initVirtualScroll();
+            updateFixedShadow();
+            updateCustomScrollbar();
+            setVersion(v => v + 1);
             // Deal default sorter
             if (sortConfig.defaultSort) {
                 const { key, dataIndex, order, silent } = { silent: true, ...sortConfig.defaultSort };
@@ -1493,6 +2923,51 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
             }
         });
     }, []);
+
+    // 自定义滚动条：设备检测 + 容器尺寸变化监听
+    useEffect(() => {
+        isMobileDeviceRef.current = isTouchPrimaryDevice();
+        if (!scrollbarOptions.enabled || isMobileDeviceRef.current) return;
+        const container = tableContainerRef.current;
+        if (!container) return;
+        const throttledUpdate = throttle(() => updateCustomScrollbar(), 200);
+        const resizeObserver = new ResizeObserver(throttledUpdate);
+        resizeObserver.observe(container);
+        return () => {
+            resizeObserver.disconnect();
+        };
+    }, [scrollbarOptions.enabled, updateCustomScrollbar]);
+
+    // scroll-row-by-row：'scrollbar' 模式监听容器 mousedown/mouseup
+    useEffect(() => {
+        if (!onlyDragScroll) return;
+        const container = tableContainerRef.current;
+        if (!container) return;
+        const handleMouseDown = (e: MouseEvent) => {
+            const el = e.target as HTMLElement;
+            if (el.classList.contains('stk-table')) {
+                if (srbrDebounceRef.current) {
+                    window.clearTimeout(srbrDebounceRef.current);
+                    srbrDebounceRef.current = 0;
+                }
+                setIsDragScroll(true);
+            }
+        };
+        const handleMouseUp = () => {
+            if (srbrDebounceRef.current) window.clearTimeout(srbrDebounceRef.current);
+            srbrDebounceRef.current = window.setTimeout(() => {
+                setIsDragScroll(false);
+                srbrDebounceRef.current = 0;
+            }, 300);
+        };
+        container.addEventListener('mousedown', handleMouseDown);
+        container.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            container.removeEventListener('mousedown', handleMouseDown);
+            container.removeEventListener('mouseup', handleMouseUp);
+            if (srbrDebounceRef.current) window.clearTimeout(srbrDebounceRef.current);
+        };
+    }, [onlyDragScroll]);
 
     // Expose ref
     useImperativeHandle(
@@ -1531,10 +3006,10 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                 // Simplified tree expand
                 toggleTreeNode(row, null);
             },
-            getSelectedArea: () => ({ rows: [], cols: [], ranges: [] }),
-            setAreaSelection: () => {},
-            clearSelectedArea: () => {},
-            copySelectedArea: () => '',
+            getSelectedArea,
+            setAreaSelection,
+            clearSelectedArea,
+            copySelectedArea,
             setFilter,
         }),
         [
@@ -1557,6 +3032,8 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
             setRowExpandFn,
             toggleTreeNode,
             setFilter,
+            areaSelectionConfig,
+            onAreaSelectionChange,
         ],
     );
 
@@ -1599,7 +3076,10 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
         if (showHeaderOverflow) classes.push('header-text-overflow');
         if (isRelativeMode) classes.push('fixed-relative-mode');
         if (autoRowHeight) classes.push('auto-row-height');
+        if (isSRBRActive) classes.push('scroll-row-by-row');
         if (scrollbarOptions.enabled) classes.push('scrollbar-on');
+        if (areaSelectionConfig.enabled) classes.push('area-selection');
+        if (isAreaSelecting) classes.push('is-area-selecting');
         if (isExperimentalScrollY) classes.push('exp-scroll-y');
         if (className) classes.push(className);
         return classes.join(' ');
@@ -1621,7 +3101,10 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
         showHeaderOverflow,
         isRelativeMode,
         autoRowHeight,
+        isSRBRActive,
         scrollbarOptions,
+        areaSelectionConfig,
+        isAreaSelecting,
         isExperimentalScrollY,
     ]);
 
@@ -1651,7 +3134,18 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
     // Render
     return (
         <StkTableContext.Provider value={ctxValue}>
-            <div ref={tableContainerRef} className={containerClass} style={mergedContainerStyle} onScroll={onTableScroll} onWheel={onTableWheel}>
+            <div
+                ref={tableContainerRef}
+                className={containerClass}
+                style={mergedContainerStyle}
+                tabIndex={areaSelectionConfig.enabled ? 0 : undefined}
+                onScroll={onTableScroll}
+                onWheel={onTableWheel}
+                onKeyDown={onAreaSelectionKeydown}
+            >
+                {!isExperimentalScrollY && SRBRTotalHeight > 0 && (
+                    <div className="row-by-row-table-height" style={{ height: SRBRTotalHeight }}></div>
+                )}
                 {colResizable && <div ref={colResizeIndicatorRef} className="column-resize-indicator"></div>}
 
                 <div className="stk-table-scroll-container">
@@ -1668,14 +3162,14 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                     >
                         {!headless && (
                             <thead>
-                                {tableHeaders.map((row, rowIndex) => (
+                                {virtualX_tableHeaders.map((row, rowIndex) => (
                                     <tr key={rowIndex} onContextMenu={e => onHeaderRowMenu?.(e)}>
                                         {virtualX_on && (
                                             <th
                                                 className="vt-x-left"
                                                 style={{
-                                                    minWidth: virtualScrollXRef.current.offsetLeft,
-                                                    width: virtualScrollXRef.current.offsetLeft,
+                                                    minWidth: theadVirtualX.offsetLeft,
+                                                    width: theadVirtualX.offsetLeft,
                                                 }}
                                             ></th>
                                         )}
@@ -1771,13 +3265,30 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                             onMouseOut={handleTbodyMouseOut}
                             onDrop={handleBodyDrop}
                         >
-                            {virtual_on && (
+                            {!isExperimentalScrollY && virtual_on && !isSRBRActive && (
                                 <tr style={{ height: virtualScrollRef.current.offsetTop }} className="padding-top-tr">
-                                    {fixedMode &&
-                                        headless &&
-                                        virtualX_columnPart.map((col, idx) => (
-                                            <td key={idx} style={cellStyleMap[TagType.TD].get(colKeyGen(col))}></td>
-                                        ))}
+                                    {fixedMode && headless && (
+                                        <>
+                                            {virtualX_on && (
+                                                <td
+                                                    className="vt-x-left"
+                                                    style={{ minWidth: theadVirtualX.offsetLeft, width: theadVirtualX.offsetLeft }}
+                                                ></td>
+                                            )}
+                                            {virtualX_columnPart.map((col, idx) => {
+                                                if (col.__VT_C_SP__) {
+                                                    return <td key={`spacer-${idx}`} className="vt-x-spacer" colSpan={col.__VT_C_SP__}></td>;
+                                                }
+                                                return <td key={idx} style={cellStyleMap[TagType.TD].get(colKeyGen(col))}></td>;
+                                            })}
+                                            {virtualX_on && (
+                                                <td
+                                                    className="vt-x-right"
+                                                    style={{ minWidth: virtualX_offsetRight, width: virtualX_offsetRight }}
+                                                ></td>
+                                            )}
+                                        </>
+                                    )}
                                 </tr>
                             )}
                             {virtual_dataSourcePart.map((row, rowIndex) => {
@@ -1805,13 +3316,26 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                                     .filter(Boolean)
                                     .join(' ');
                                 return (
-                                    <tr key={rk} id={stkTableId + '-' + rk} data-row-key={rk} data-row-i={absRowIndex} className={trClasses}>
+                                    <tr
+                                        key={rk}
+                                        ref={el => {
+                                            if (el) trRefsMap.current.set(String(rk), el);
+                                            else trRefsMap.current.delete(String(rk));
+                                        }}
+                                        id={stkTableId + '-' + rk}
+                                        data-row-key={rk}
+                                        data-row-i={absRowIndex}
+                                        className={trClasses}
+                                    >
                                         {virtualX_on && <td className="vt-x-left"></td>}
                                         {virtualX_columnPart.map((col, _colIdx) => {
                                             if (col.__VT_C_SP__) {
                                                 return <td key={`spacer-${_colIdx}`} className="vt-x-spacer" colSpan={col.__VT_C_SP__}></td>;
                                             }
                                             const ck = colKeyGen(col);
+                                            // merge cells: 被合并隐藏的单元格不渲染
+                                            if (mergeCellsInfo.hiddenCellMap.get(rk)?.has(ck)) return null;
+                                            const mergeSpan = mergeCellsInfo.mergeSpanMap.get(pureCellKeyGen(rk, ck));
                                             const cellKey = cellKeyGen(row, col);
                                             const tdClasses = [
                                                 col.className || '',
@@ -1826,7 +3350,14 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                                                 .filter(Boolean)
                                                 .join(' ');
                                             return (
-                                                <td key={ck} data-col-key={ck} style={cellStyleMap[TagType.TD].get(ck)} className={tdClasses}>
+                                                <td
+                                                    key={ck}
+                                                    data-col-key={ck}
+                                                    style={cellStyleMap[TagType.TD].get(ck)}
+                                                    className={tdClasses}
+                                                    colSpan={mergeSpan?.colspan}
+                                                    rowSpan={mergeSpan?.rowspan}
+                                                >
                                                     {col.customCell ? (
                                                         React.createElement(col.customCell as any, {
                                                             className: 'table-cell-wrapper',
@@ -1865,15 +3396,36 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                                     </tr>
                                 );
                             })}
-                            {virtual_on && <tr style={{ height: virtual_offsetBottom }}></tr>}
+                            {!isExperimentalScrollY && (
+                                <>
+                                    {virtual_on && !isSRBRActive && <tr style={{ height: virtual_offsetBottom }}></tr>}
+                                    {SRBRBottomHeight > 0 && <tr style={{ height: SRBRBottomHeight }}></tr>}
+                                </>
+                            )}
                         </tbody>
                     </table>
+                    {scrollbarOptions.enabled && showScrollbar.y && (
+                        <div
+                            className="stk-sb-thumb vertical"
+                            style={{ height: sbThumb.h, transform: `translateY(${sbThumb.t}px)` }}
+                            onMouseDown={onVerticalScrollbarMouseDown}
+                            onTouchStart={onVerticalScrollbarMouseDown}
+                        ></div>
+                    )}
                 </div>
 
                 {(!dataSourceCopy || !dataSourceCopy.length) && showNoData && (
                     <div className={`stk-table-no-data${noDataFull ? ' no-data-full' : ''}`}>{renderEmpty ? renderEmpty() : '暂无数据'}</div>
                 )}
                 {renderCustomBottom?.()}
+                {scrollbarOptions.enabled && showScrollbar.x && (
+                    <div
+                        className="stk-sb-thumb horizontal"
+                        style={{ width: sbThumb.w, transform: `translateX(${sbThumb.l}px)` }}
+                        onMouseDown={onHorizontalScrollbarMouseDown}
+                        onTouchStart={onHorizontalScrollbarMouseDown}
+                    ></div>
+                )}
             </div>
         </StkTableContext.Provider>
     );
@@ -1884,7 +3436,7 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                 {virtualX_on && (
                     <td
                         className="vt-x-left"
-                        style={{ minWidth: virtualScrollXRef.current.offsetLeft, width: virtualScrollXRef.current.offsetLeft }}
+                        style={{ minWidth: theadVirtualX.offsetLeft, width: theadVirtualX.offsetLeft }}
                     ></td>
                 )}
                 {virtualX_columnPart.map((col, _colIdx) => {

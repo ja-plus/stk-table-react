@@ -1,4 +1,4 @@
-# EditableCell 편집 가능 셀<Badge type="tip" text="^1.0.0" /> <Badge type="warning" text="Beta" />
+# EditableCell  편집 가능 셀<Badge type="warning" text="Beta" />
 
 EditableCell은 내장된 편집 가능 셀 컴포넌트입니다. 셀을 더블클릭하여 편집 모드로 진입하며, 키보드로 저장 또는 취소할 수 있습니다.
 

@@ -20,7 +20,7 @@ The following example uses `::-webkit-scrollbar` to style the scrollbar.
 
 Effective in browsers with `Blink` or `webkit` engines (Chrome, Safari, Opera) (refer to [::-webkit-scrollbar | MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/::-webkit-scrollbar)).
 
-## Built-in Scrollbar (`^0.9.0`)
+## Built-in Scrollbar
 
 Built-in DOM-implemented scrollbar, enabled via `props.scrollbar`.
 
@@ -38,7 +38,7 @@ Built-in DOM-implemented scrollbar, enabled via `props.scrollbar`.
 ```
 ::: tip Note
 * Only effective when using virtual scrolling (`virtual`).
-* Not effective on mobile devices. (`^0.11.13`)
+* Not effective on mobile devices.
 :::
 
 <demo react="basic/scrollbar-style/CustomScrollbar.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/basic/scrollbar-style/CustomScrollbar.tsx"></demo>

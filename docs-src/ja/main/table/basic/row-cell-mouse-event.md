@@ -25,7 +25,7 @@
 | --- | --- | --- | --- |
 | rowHover | boolean | true | ホバーした行をハイライトするかどうか |
 | rowActive | boolean \| RowActiveOption | true | 選択された行をハイライトするかどうか |
-| ~~rowCurrentRevokable~~ `deprecated(v0.8.9)` `rowActive.revokable` を使用してください | ~~boolean~~ | ~~true~~ | ~~選択された行を再度クリックして選択解除できるかどうか（rowActive=trueの場合）~~ |
+| ~~rowCurrentRevokable~~ `deprecated` `rowActive.revokable` を使用してください | ~~boolean~~ | ~~true~~ | ~~選択された行を再度クリックして選択解除できるかどうか（rowActive=trueの場合）~~ |
 | cellHover | boolean | false | ホバーしたセルをハイライトするかどうか |
 | cellActive | boolean | false | 選択されたセルをハイライトするかどうか |
 | selectedCellRevokable | boolean | true | セルを再度クリックして選択解除できるかどうか（cellActive=trueの場合） |

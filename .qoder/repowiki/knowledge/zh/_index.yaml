@@ -1,0 +1,54 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: Q0DeR-MaG1C-BrAnCh-Fo2-NoN-GiT-Or-No-C0MmIt
+nodes_managed: true
+exported_at: "2026-07-23T03:40:16Z"
+modules:
+    "":
+        dir_name: stk-table-react 单仓根项目
+        title: stk-table-react 单仓根项目
+        scope:
+            - package.json
+            - vite.config.ts
+            - tsconfig.json
+            - vitest.config.ts
+            - postcss.config.js
+            - .eslintrc.cjs
+            - .prettierrc.cjs
+            - .gitignore
+            - index.html
+            - main.tsx
+            - pnpm-lock.yaml
+            - .eslintignore
+            - .prettierignore
+            - CHANGELOG.md
+            - LICENSE
+            - README.md
+        source_files: []
+        children:
+            - dev_demo
+            - docs_site
+        depends_on: []
+        related_to: []
+    dev_demo:
+        dir_name: 示例与文档演示站点 (lib-demo & docs-demo)
+        title: 示例与文档演示站点 (lib-demo & docs-demo)
+        scope:
+            - lib-demo/
+            - docs-demo/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: docs_site
+    docs_site:
+        dir_name: StkTable React 文档站点（VitePress）
+        title: StkTable React 文档站点（VitePress）
+        scope:
+            - docs-src/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: dev_demo

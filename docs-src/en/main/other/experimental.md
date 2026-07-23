@@ -2,7 +2,7 @@
 
 This is an experimental feature and may change in future versions.
 
-## experimental.scrollY <Badge type="tip" text="^0.10.0" />
+## experimental.scrollY 
 
 Transform-based vertical scrolling simulation.
 

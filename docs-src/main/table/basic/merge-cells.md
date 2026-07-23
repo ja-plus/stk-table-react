@@ -1,4 +1,4 @@
-# 单元格合并 <Badge type="tip" text="^0.8.0" /> 
+# 单元格合并 
 
 通过 `StkTableColumns['mergeCells']` 函数指定需要合并的单元格。
 
@@ -27,7 +27,7 @@ function mergeCells(data: {
 如果表格数据有变化，则会重新调用 `mergeCells` 函数计算。
 :::
 
-### 行合并虚拟列表 <Badge type="tip" text="^0.8.4" /> 
+### 行合并虚拟列表 
 #### 简单合并
 <demo react="basic/merge-cells/MergeCellsRowVirtual/index.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/basic/merge-cells/MergeCellsRowVirtual/index.tsx"></demo>
 代码中，定义了 `mergeCells` 函数，将一行中的`rowspan`字段作为合并数量。

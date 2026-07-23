@@ -1,4 +1,4 @@
-# 树形  <Badge type="tip" text="^0.7.0" />
+# 树形
 
 通过下面两步开启树形功能
 
@@ -62,6 +62,6 @@ export const getDataSource = () => [
 :::
 
 ## 排序
-默认情况下，点击表头排序时，会对当前层级的数据进行排序。如果需要对子节点也进行排序，需要配置 `sortConfig.sortChildren = true`。 `v0.8.8`
+默认情况下，点击表头排序时，会对当前层级的数据进行排序。如果需要对子节点也进行排序，需要配置 `sortConfig.sortChildren = true`。
 
 详情见[排序](/main/table/basic/sort)

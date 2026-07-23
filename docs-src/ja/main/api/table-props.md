@@ -16,7 +16,7 @@ width?: string;
 
 ### minWidth
 
-最小テーブル幅 @deprecated 0.9.1 cssセレクター`.stk-table-main`で設定
+最小テーブル幅 @deprecated cssセレクター`.stk-table-main`で設定
 
 ```ts
 minWidth?: string;
@@ -24,7 +24,7 @@ minWidth?: string;
 
 ### maxWidth
 
-テーブル最大幅 @deprecated 0.9.1 cssセレクター`.stk-table-main`で設定
+テーブル最大幅 @deprecated cssセレクター`.stk-table-main`で設定
 
 ```ts
 maxWidth?: string;
@@ -461,7 +461,7 @@ smoothScroll?: boolean;
 ### scrollRowByRow
 
 整数行単位の縦スクロール
-- scrollbar：スクロールバードラッグのみ有効、白画面問題の処理に使用可能(v0.7.2)
+- scrollbar：スクロールバードラッグのみ 有効、白画面問題の処理に使用可能
 
 ```ts
 scrollRowByRow?: boolean | 'scrollbar';

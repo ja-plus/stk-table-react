@@ -20,7 +20,7 @@
 
 在 `Blink`或`webkit`内核的浏览器(Chrome, Safari, Opera)中生效（参考[::-webkit-scrollbar | MDN](https://developer.mozilla.org/zh-CN/docs/Web/CSS/::-webkit-scrollbar)）。
 
-## 内置的滚动条(`^0.9.0`)
+## 内置的滚动条
 
 内置DOM实现的滚动条，通过 `props.scrollbar` 启用。
 
@@ -38,7 +38,7 @@
 ```
 ::: tip 注意
 * 仅在虚拟列表(virtual)下生效。
-* 移动端不生效。(`^0.11.13`)
+* 移动端不生效。
 :::
 
 <demo react="basic/scrollbar-style/CustomScrollbar.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/basic/scrollbar-style/CustomScrollbar.tsx"></demo>

@@ -1,4 +1,4 @@
-# Area Selection <Badge type="tip" text="^0.10.0" /> <Badge type="warning" text="Need Register" /> 
+# Area Selection <Badge type="warning" text="Need Register" /> 
 Enable table cell drag selection through `props.areaSelection`.
 - Support copying to clipboard (Ctrl/Cmd + C).
 - Esc to cancel selection

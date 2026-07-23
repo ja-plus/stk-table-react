@@ -16,7 +16,7 @@ width?: string;
 
 ### minWidth
 
-Minimum table width @deprecated 0.9.1 Use css selector `.stk-table-main` to set
+Minimum table width @deprecated Use css selector `.stk-table-main` to set
 
 ```ts
 minWidth?: string;
@@ -24,7 +24,7 @@ minWidth?: string;
 
 ### maxWidth
 
-Maximum table width @deprecated 0.9.1 Use css selector `.stk-table-main` to set
+Maximum table width @deprecated Use css selector `.stk-table-main` to set
 
 ```ts
 maxWidth?: string;
@@ -461,7 +461,7 @@ smoothScroll?: boolean;
 ### scrollRowByRow
 
 Scroll vertically by integer rows
-- scrollbar: Only effective when dragging the scrollbar, can be used to solve the white screen problem when dragging (v0.7.2)
+- scrollbar: Only effective when dragging the scrollbar, can be used to solve the white screen problem when dragging
 
 ```ts
 scrollRowByRow?: boolean | 'scrollbar';

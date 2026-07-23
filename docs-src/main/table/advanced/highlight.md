@@ -90,7 +90,7 @@ stkTableRef.current?.setHighlightDimRow(['id1'], {
 ```
 <demo react="advanced/highlight/HighlightCss.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/advanced/highlight/HighlightCss.tsx"></demo>
 
-## ~~通过js自定义高亮动画~~ (`v0.7.0`已废弃)
+## ~~通过js自定义高亮动画~~ (已废弃)
 <details>
 <summary>
     点击查看
@@ -143,7 +143,6 @@ type HighlightDimBaseOption = {
      * - 调用 setHighlightDimRow 时，若获取不到对应 DOM 则直接丢弃，不放入 store 循环计算；
      * - 若 store 中已存在该 key，也会被删除。
      * - 在循环计算过程中，若某行 DOM 已不存在，也会从 store 中删除，不再继续计算。
-     * @version ^1.0.0
      */
     ignoreInvisible?: boolean;
 };

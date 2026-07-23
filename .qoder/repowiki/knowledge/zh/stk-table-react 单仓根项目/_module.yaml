@@ -1,0 +1,23 @@
+schema_version: 1
+module_path: ""
+title: stk-table-react 单仓根项目
+scope:
+    - package.json
+    - vite.config.ts
+    - tsconfig.json
+    - vitest.config.ts
+    - postcss.config.js
+    - .eslintrc.cjs
+    - .prettierrc.cjs
+    - .gitignore
+    - index.html
+    - main.tsx
+    - pnpm-lock.yaml
+    - .eslintignore
+    - .prettierignore
+    - CHANGELOG.md
+    - LICENSE
+    - README.md
+source_files: []
+depends_on: []
+related_to: []

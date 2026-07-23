@@ -31,7 +31,7 @@ Many basic table functionalities may not be comprehensive, but there's ample roo
 
     ~~Regarding the `filter` function, considering that in actual development, different projects use different component libraries and styles, providing a built-in filter function might: 1. affect the overall style; 2. have a negative impact on package size control. Therefore, it hasn't been implemented yet.~~
 
-    `v1.0.0` includes a built-in [FilterCell](/en/main/table/advanced/custom-cells/filter-cell) component that users can import as needed.
+    Includes a built-in [FilterCell](/en/main/table/advanced/custom-cells/filter-cell) component that users can import as needed.
 
 * Sorting cannot click individual arrows.
     

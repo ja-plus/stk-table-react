@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: dev_demo
+title: 示例与文档演示站点 (lib-demo & docs-demo)
+scope:
+    - lib-demo/
+    - docs-demo/
+source_files: []
+depends_on: []
+related_to:
+    - path: docs_site

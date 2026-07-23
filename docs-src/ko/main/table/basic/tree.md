@@ -1,4 +1,4 @@
-# 트리형  <Badge type="tip" text="^0.7.0" />
+# 트리형
 
 다음 두 단계로 트리형 기능을开启합니다
 
@@ -62,6 +62,6 @@ export const getDataSource = () => [
 :::
 
 ## 정렬
-기본적으로 테이블 헤더를 클릭하여 정렬하면 현재 레벨의 데이터가 정렬됩니다. 하위 노드도 정렬해야 하면 `sortConfig.sortChildren = true`를 설정하세요. `v0.8.8`
+기본적으로 테이블 헤더를 클릭하여 정렬하면 현재 레벨의 데이터가 정렬됩니다. 하위 노드도 정렬해야 하면 `sortConfig.sortChildren = true`를 설정하세요.
 
 세부 사항은 [정렬](/ko/main/table/basic/sort)을 참고하세요.

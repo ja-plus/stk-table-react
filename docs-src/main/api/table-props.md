@@ -16,7 +16,7 @@ width?: string;
 
 ### minWidth
 
-最小表格宽度 @deprecated 0.9.1 使用css选择器`.stk-table-main`设置
+最小表格宽度 @deprecated 使用css选择器`.stk-table-main`设置
 
 ```ts
 minWidth?: string;
@@ -24,7 +24,7 @@ minWidth?: string;
 
 ### maxWidth
 
-表格最大宽度 @deprecated 0.9.1 使用css选择器`.stk-table-main`设置
+表格最大宽度 @deprecated 使用css选择器`.stk-table-main`设置
 
 ```ts
 maxWidth?: string;
@@ -455,7 +455,7 @@ smoothScroll?: boolean;
 ### scrollRowByRow
 
 按整数行纵向滚动
-- scrollbar：仅拖动滚动条生效,可用于处理拖动白屏问题(v0.7.2)
+- scrollbar：仅拖动滚动条生效,可用于处理拖动白屏问题
 
 ```ts
 scrollRowByRow?: boolean | 'scrollbar';

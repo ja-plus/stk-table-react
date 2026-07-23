@@ -1,4 +1,4 @@
-# Tree  <Badge type="tip" text="^0.7.0" />
+# Tree
 
 Enable tree function in two steps
 
@@ -61,6 +61,6 @@ If you have certain performance requirements, you can refer to [Example - Huge D
 :::
 
 ## Sorting
-By default, when clicking on the table header to sort, only the data at the current level will be sorted. If you need to sort child nodes as well, you need to configure `sortConfig.sortChildren = true`. `v0.8.8`
+By default, when clicking on the table header to sort, only the data at the current level will be sorted. If you need to sort child nodes as well, you need to configure `sortConfig.sortChildren = true`.
 
 For details, see [Sorting](/en/main/table/basic/sort)

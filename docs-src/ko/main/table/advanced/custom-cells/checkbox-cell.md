@@ -1,4 +1,4 @@
-# CheckboxCell 체크박스 <Badge type="tip" text="^1.0.0" /> <Badge type="warning" text="Beta" />
+# CheckboxCell  체크박스 <Badge type="warning" text="Beta" />
 
 CheckboxCell 는 셀 수준에서 전체 선택/부분 선택 기능을 지원하는 내장 체크박스 셀 컴포넌트입니다.
 

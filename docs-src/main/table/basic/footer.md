@@ -1,4 +1,4 @@
-# 表尾汇总行 <Badge type="tip" text="^0.11.0" />
+# 表尾汇总行
 
 * `props.footerData` 配置表尾汇总行数据。
 * `props.footerConfig` 配置表尾位置和行为。

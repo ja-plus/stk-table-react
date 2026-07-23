@@ -614,3 +614,105 @@ describe('StkTable React - Hidden Columns', () => {
         expect(ths[0].textContent).toContain('Visible');
     });
 });
+
+describe('StkTable React - Body Merge Cells', () => {
+    it('colspan merge: parent row cell spans 2 columns (panel-tree case)', () => {
+        const columns: StkTableColumn<any>[] = [
+            {
+                title: 'ID',
+                dataIndex: 'id',
+                width: 50,
+                mergeCells({ row }) {
+                    if (row.children) return { colspan: 2 };
+                },
+            },
+            { title: 'Name', dataIndex: 'name', width: 100 },
+            { title: 'Age', dataIndex: 'age', width: 80 },
+        ];
+        const dataSource = [
+            { id: 'parent', key: '1', children: [{ key: '1-1' }] },
+            { id: 'child', key: '2', name: 'child-name', age: 10 },
+        ];
+        const { container } = render(<StkTable columns={columns} dataSource={dataSource} rowKey="key" />);
+        const trs = container.querySelectorAll('.stk-tbody-main tr');
+        // 父行：id 单元格 colSpan=2，name 单元格被隐藏
+        const parentTds = trs[0].querySelectorAll('td');
+        expect(parentTds.length).toBe(2);
+        expect(parentTds[0].getAttribute('colspan')).toBe('2');
+        // 子行：正常 3 列
+        const childTds = trs[1].querySelectorAll('td');
+        expect(childTds.length).toBe(3);
+        expect(childTds[0].getAttribute('colspan')).toBeNull();
+    });
+
+    it('rowspan merge: first cell spans 2 rows', () => {
+        const columns: StkTableColumn<any>[] = [
+            {
+                title: 'Col0',
+                dataIndex: 'col0',
+                width: 100,
+                mergeCells({ rowIndex }) {
+                    if (rowIndex === 0) return { rowspan: 2 };
+                },
+            },
+            { title: 'Col1', dataIndex: 'col1', width: 100 },
+        ];
+        const dataSource = getData(3);
+        const { container } = render(<StkTable columns={columns} dataSource={dataSource} rowKey="id" />);
+        const trs = container.querySelectorAll('.stk-tbody-main tr');
+        expect(trs[0].querySelectorAll('td').length).toBe(2);
+        expect(trs[0].querySelector('td')?.getAttribute('rowspan')).toBe('2');
+        // 第二行的第一列被隐藏
+        expect(trs[1].querySelectorAll('td').length).toBe(1);
+        expect(trs[2].querySelectorAll('td').length).toBe(2);
+    });
+});
+
+describe('StkTable React - Area Selection', () => {
+    it('adds area-selection class and tabindex when enabled', () => {
+        const { container } = render(<StkTable columns={getColumns(3)} dataSource={getData(3)} rowKey="id" areaSelection />);
+        const table = container.querySelector('.stk-table');
+        expect(table?.classList.contains('area-selection')).toBe(true);
+        expect(table?.getAttribute('tabindex')).toBe('0');
+    });
+
+    it('mousedown on cell selects single cell and emits change on mouseup', () => {
+        const onChange = vi.fn();
+        const { container } = render(
+            <StkTable columns={getColumns(3)} dataSource={getData(3)} rowKey="id" areaSelection onAreaSelectionChange={onChange} />,
+        );
+        const table = container.querySelector('.stk-table') as HTMLElement;
+        const td = container.querySelector('.stk-tbody-main tr td') as HTMLElement;
+
+        fireEvent.mouseDown(td, { button: 0 });
+        expect(table.classList.contains('is-area-selecting')).toBe(true);
+        expect(td.classList.contains('cell-range-selected')).toBe(true);
+
+        fireEvent.mouseUp(document);
+        expect(table.classList.contains('is-area-selecting')).toBe(false);
+        expect(onChange).toHaveBeenCalledTimes(1);
+        const ranges = onChange.mock.calls[0][0];
+        expect(ranges.length).toBe(1);
+        expect(ranges[0].index.begin).toEqual({ row: 0, col: 0 });
+        expect(ranges[0].index.end).toEqual({ row: 0, col: 0 });
+    });
+
+    it('setAreaSelection/getSelectedArea/clearSelectedArea work via ref', () => {
+        const ref = createRef<StkTableRef<any>>();
+        render(<StkTable ref={ref} columns={getColumns(3)} dataSource={getData(5)} rowKey="id" areaSelection />);
+
+        act(() => {
+            ref.current?.setAreaSelection({ begin: { row: 1, col: 0 }, end: { row: 2, col: 1 } });
+        });
+        const area = ref.current?.getSelectedArea();
+        expect(area.rows.length).toBe(2);
+        expect(area.cols.length).toBe(2);
+        expect(area.ranges[0].index.begin).toEqual({ row: 1, col: 0 });
+        expect(area.ranges[0].index.end).toEqual({ row: 2, col: 1 });
+
+        act(() => {
+            ref.current?.clearSelectedArea();
+        });
+        expect(ref.current?.getSelectedArea().rows.length).toBe(0);
+    });
+});

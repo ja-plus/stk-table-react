@@ -127,7 +127,7 @@ export type SortConfig<T extends Record<string, any>> = {
      * デフォルト true ($*$ should be false)
      */
     stringLocaleCompare?: boolean;
-    /** 子アイテムを排序するかどうか。デフォルト false (v0.8.8)*/
+    /** 子アイテムを排序するかどう か。デフォルト false */
     sortChildren?: boolean;
 };
 ```

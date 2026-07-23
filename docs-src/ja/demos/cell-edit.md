@@ -1,6 +1,6 @@
 # セル編集
 
-## 組み込みセル編集（`^1.0.0`）
+## 組み込みセル編集
 テーブルには `createEditableCell` 編集可能セルプラグインが組み込まれており、ファクトリ関数で簡単に編集可能セルを作成できます。
 
 詳細については、[EditableCell 編集可能セル](/ja/main/table/advanced/custom-cells/editable-cell) を参照してください。

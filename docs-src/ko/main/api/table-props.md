@@ -16,7 +16,7 @@ width?: string;
 
 ### minWidth
 
-최소 테이블 너비 @deprecated 0.9.1 CSS 선택자 `.stk-table-main`로 설정
+최소 테이블 너비 @deprecated CSS 선택자 `.stk-table-main`로 설정
 
 ```ts
 minWidth?: string;
@@ -24,7 +24,7 @@ minWidth?: string;
 
 ### maxWidth
 
-테이블 최대 너비 @deprecated 0.9.1 CSS 선택자 `.stk-table-main`로 설정
+테이블 최대 너비 @deprecated CSS 선택자 `.stk-table-main`로 설정
 
 ```ts
 maxWidth?: string;
@@ -461,7 +461,7 @@ smoothScroll?: boolean;
 ### scrollRowByRow
 
 정수 행 단위 세로 스크롤
-- scrollbar: 스크롤바만 드래그 시生效, 드래그 백색 화면 문제 처리可用(v0.7.2)
+- scrollbar: 스크롤바만 드래그 시生效,  드래그 백색 화면 문제 처리可用
 
 ```ts
 scrollRowByRow?: boolean | 'scrollbar';

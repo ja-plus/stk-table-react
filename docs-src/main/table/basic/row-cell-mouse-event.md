@@ -25,7 +25,7 @@
 | --- | --- | --- | --- |
 | rowHover | boolean | true | 是否高亮鼠标悬浮的行 |
 | rowActive | boolean \| RowActiveOption | true | 是否高亮选中的行 |
-| ~~rowCurrentRevokable~~ `deprecated(v0.8.9)`请使用 `rowActive.revokable` | ~~boolean~~ | ~~true~~ | ~~当前行再次点击否可以取消 (rowActive=true)~~ |
+| ~~rowCurrentRevokable~~ `deprecated`请使用 `rowActive.revokable` | ~~boolean~~ | ~~true~~ | ~~当前行再次点击否可以取消 (rowActive=true)~~ |
 | cellHover | boolean | false | 是否高亮鼠标悬浮的单元格 |
 | cellActive | boolean | false | 是否高亮选中的单元格 |
 | selectedCellRevokable | boolean | true | 单元格再次点击否可以取消选中 (cellActive=true) |
