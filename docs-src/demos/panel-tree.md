@@ -11,9 +11,10 @@
 ### 展开行去除'--'
 配置`empty-cell-text`，当行有子项时，返回空字符串。
 ### 展开行文字超长
-通过css 去除默认的文字超长样式。
+展开行的单元格加上 `white-space: nowrap` 使文字不换行。
 ```css
-:deep(.panel-header-row .table-cell-wrapper) {
+:deep(.panel-title > div) {
+    white-space: nowrap;
     overflow: initial;
 }
 ```

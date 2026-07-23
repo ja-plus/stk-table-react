@@ -11,9 +11,10 @@
 ### 展開可能な行の '--' を削除
 行に子があるときに空文字列を返すように `empty-cell-text` を設定します。
 ### 展開可能な行のテキストオーバーフロー
-CSS介してデフォルトのテキストオーバーフロースタイルを削除します。
+展開可能な行のセルに `white-space: nowrap` を追加してテキストの折り返しを防止します。
 ```css
-:deep(.panel-header-row .table-cell-wrapper) {
+:deep(.panel-title > div) {
+    white-space: nowrap;
     overflow: initial;
 }
 ```

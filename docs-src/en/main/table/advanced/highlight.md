@@ -90,21 +90,6 @@ Here `duration` is set to `2000` to clear the `class` from the element after the
 ```
 <demo react="advanced/highlight/HighlightCss.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/advanced/highlight/HighlightCss.tsx"></demo>
 
-## ~~Custom Highlight Animation via JS~~ (deprecated)
-<details>
-<summary>
-    Click to view
-</summary>
-<pre>
-stkTableRef.current?.setHighlightDimRow(['id1'], { 
-    method: 'js',
-    duration: 2000
-});
-</pre>
-Not recommended as it requires manual color calculation and has poor performance. Depends on `d3-interpolate`.
-</details>
-
-
 ## API
 
 ### Highlight Row  setHighlightDimRow

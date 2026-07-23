@@ -54,7 +54,7 @@ export const koConfig = defineConfig({
                                     { text: '헤더리스', link: '/table/basic/headless' },
                                     { text: '행 확장', link: '/table/basic/expand-row' },
                                     { text: '트리', link: '/table/basic/tree' },
-                                    { text: '멀티 레벨 헤더(✨Update)', link: '/table/basic/multi-header' },
+                                    { text: '멀티 레벨 헤더', link: '/table/basic/multi-header' },
                                     { text: '시퀀스 열', link: '/table/basic/seq' },
                                     { text: '빈 데이터', link: '/table/basic/empty' },
                                     { text: '행/열 고유 키', link: '/table/basic/key' },
@@ -78,7 +78,7 @@ export const koConfig = defineConfig({
                                     { text: '커스텀 셀', link: '/table/advanced/custom-cell' },
                                     { text: '커스텀 정렬', link: '/table/advanced/custom-sort' },
                                     {
-                                        text: '커스텀 셀 내장 확장(✨NEW)',
+                                        text: '커스텀 셀 내장 확장',
                                         collapsed: true,
                                         items: [
                                             { text: 'EditableCell 편집 가능 셀', link: '/table/advanced/custom-cells/editable-cell' },

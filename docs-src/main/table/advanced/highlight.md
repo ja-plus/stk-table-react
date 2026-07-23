@@ -90,21 +90,6 @@ stkTableRef.current?.setHighlightDimRow(['id1'], {
 ```
 <demo react="advanced/highlight/HighlightCss.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/advanced/highlight/HighlightCss.tsx"></demo>
 
-## ~~通过js自定义高亮动画~~ (已废弃)
-<details>
-<summary>
-    点击查看
-</summary>
-<pre>
-stkTableRef.current?.setHighlightDimRow(['id1'], { 
-    method: 'js',
-    duration: 2000
-});
-</pre>
-不推荐使用，因为需要手动计算颜色，且性能较差。依赖 `d3-interpolate`。
-</details>
-
-
 ## API
 
 ### 高亮行  setHighlightDimRow

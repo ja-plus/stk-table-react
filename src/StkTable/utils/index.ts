@@ -19,8 +19,15 @@ export function insertToOrderedArray<T extends object>(
     targetArray: T[],
     sortConfig: SortConfig<T> & { customCompare?: (a: T, b: T) => number } = {},
 ) {
-    const { dataIndex, sortField, order } = sortState;
+    let { dataIndex, sortField, order } = sortState;
     let { sortType } = sortState;
+
+    // 当 order 为空时，尝试回退到 defaultSort
+    if (!order && sortConfig.defaultSort) {
+        order = sortConfig.defaultSort.order;
+        dataIndex = sortConfig.defaultSort.dataIndex as any;
+    }
+
     const field = sortField || dataIndex;
     if (!sortType) sortType = typeof newItem[field] as 'number' | 'string';
     const isNumber = sortType === 'number';

@@ -120,9 +120,10 @@ export default function PanelTreeDemo() {
                 dataSource={tableData}
             />
             <style>{`
-.panel-tree-demo .panel-title .table-cell-wrapper {
+.panel-tree-demo .panel-title > div {
     font-weight: bold;
     overflow: initial;
+    white-space: nowrap;
 }
 .panel-tree-demo .panel-header-row {
     --tr-hover-bgc: var(--th-bgc);

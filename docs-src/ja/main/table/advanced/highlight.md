@@ -88,21 +88,6 @@ stkTableRef.current?.setHighlightDimRow(['id1'], {
 ```
 <demo react="advanced/highlight/HighlightCss.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/advanced/highlight/HighlightCss.tsx"></demo>
 
-## ~~JS を通じたカスタムハイライトアニメーション~~（非推奨）
-<details>
-<summary>
-    クリックして表示
-</summary>
-<pre>
-stkTableRef.current?.setHighlightDimRow(['id1'], { 
-    method: 'js',
-    duration: 2000
-});
-</pre>
-手動で色を計算する必要があり、パフォーマンスが悪いため推奨されません。`d3-interpolate` に依存します。
-</details>
-
-
 ## API
 
 ### 行ハイライト  setHighlightDimRow

@@ -11,9 +11,10 @@ Configure the `disabled` function in `row-active` to disable selection when a ro
 ### Remove '--' for Expandable Rows
 Configure `empty-cell-text` to return an empty string when a row has children.
 ### Text Overflow for Expandable Rows
-Remove the default text overflow style through CSS.
+Add `white-space: nowrap` to the cells of expandable rows to prevent text wrapping.
 ```css
-:deep(.panel-header-row .table-cell-wrapper) {
+:deep(.panel-title > div) {
+    white-space: nowrap;
     overflow: initial;
 }
 ```

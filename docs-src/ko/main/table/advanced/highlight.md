@@ -88,21 +88,6 @@ stkTableRef.current?.setHighlightDimRow(['id1'], {
 ```
 <demo react="advanced/highlight/HighlightCss.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/advanced/highlight/HighlightCss.tsx"></demo>
 
-## ~~js를 통해 커스텀 강조 애니메이션 정의~~ (已废弃)
-<details>
-<summary>
-    클릭하여 보기
-</summary>
-<pre>
-stkTableRef.current?.setHighlightDimRow(['id1'], { 
-    method: 'js',
-    duration: 2000
-});
-</pre>
-사용을 권장하지 않습니다. 색상을手動計算해야 하고 성능이 좋지 않습니다. `d3-interpolate`에 의존합니다.
-</details>
-
-
 ## API
 
 ### 행 강조  setHighlightDimRow

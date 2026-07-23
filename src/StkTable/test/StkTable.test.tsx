@@ -666,6 +666,67 @@ describe('StkTable React - Body Merge Cells', () => {
         expect(trs[1].querySelectorAll('td').length).toBe(1);
         expect(trs[2].querySelectorAll('td').length).toBe(2);
     });
+
+    it('rowspan merge: hover child row highlights the rowspan cell (aligned with stk-table-vue)', () => {
+        const columns: StkTableColumn<any>[] = [
+            {
+                title: 'Col0',
+                dataIndex: 'col0',
+                width: 100,
+                mergeCells({ rowIndex }) {
+                    if (rowIndex === 0) return { rowspan: 2 };
+                },
+            },
+            { title: 'Col1', dataIndex: 'col1', width: 100 },
+        ];
+        const dataSource = getData(3);
+        const { container } = render(<StkTable columns={columns} dataSource={dataSource} rowKey="id" />);
+        const trs = container.querySelectorAll('.stk-tbody-main tr');
+        const rowspanTd = trs[0].querySelector('td[rowspan]') as HTMLElement;
+        expect(rowspanTd).not.toBeNull();
+
+        // hover 到被合并覆盖的子行，rowspan 单元格应高亮
+        fireEvent.mouseOver(trs[1].querySelector('td') as HTMLElement);
+        expect(rowspanTd.classList.contains('cell-hover')).toBe(true);
+
+        // 移出 tbody 后高亮清除
+        fireEvent.mouseOut(trs[1].querySelector('td') as HTMLElement, { relatedTarget: document.body });
+        expect(rowspanTd.classList.contains('cell-hover')).toBe(false);
+
+        // hover 到合并起始行本身，rowspan 单元格也应高亮
+        fireEvent.mouseOver(trs[0].querySelector('td') as HTMLElement);
+        expect(rowspanTd.classList.contains('cell-hover')).toBe(true);
+
+        // hover 到无关行，高亮清除
+        fireEvent.mouseOver(trs[2].querySelector('td') as HTMLElement);
+        expect(rowspanTd.classList.contains('cell-hover')).toBe(false);
+    });
+
+    it('rowspan merge: active child row highlights the rowspan cell', () => {
+        const columns: StkTableColumn<any>[] = [
+            {
+                title: 'Col0',
+                dataIndex: 'col0',
+                width: 100,
+                mergeCells({ rowIndex }) {
+                    if (rowIndex === 0) return { rowspan: 2 };
+                },
+            },
+            { title: 'Col1', dataIndex: 'col1', width: 100 },
+        ];
+        const dataSource = getData(3);
+        const { container } = render(<StkTable columns={columns} dataSource={dataSource} rowKey="id" />);
+        const trs = container.querySelectorAll('.stk-tbody-main tr');
+        const rowspanTd = trs[0].querySelector('td[rowspan]') as HTMLElement;
+
+        // 点击子行激活，rowspan 单元格应高亮
+        fireEvent.click(trs[1].querySelector('td') as HTMLElement);
+        expect(rowspanTd.classList.contains('cell-active')).toBe(true);
+
+        // 再次点击取消激活，高亮清除
+        fireEvent.click(trs[1].querySelector('td') as HTMLElement);
+        expect(rowspanTd.classList.contains('cell-active')).toBe(false);
+    });
 });
 
 describe('StkTable React - Area Selection', () => {

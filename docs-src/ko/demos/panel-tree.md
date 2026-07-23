@@ -11,9 +11,10 @@
 ### 확장 가능한 행의 '--' 제거
 행에 자식이 있을 때 빈 문자열을 반환하도록 `empty-cell-text` 를 설정합니다.
 ### 확장 가능한 행의 텍스트 오버플로
-CSS 를 통해 기본 텍스트 오버플로 스타일을 제거합니다.
+확장 가능한 행의 셀에 `white-space: nowrap` 를 추가하여 텍스트 줄바꿈을 방지합니다.
 ```css
-:deep(.panel-header-row .table-cell-wrapper) {
+:deep(.panel-title > div) {
+    white-space: nowrap;
     overflow: initial;
 }
 ```

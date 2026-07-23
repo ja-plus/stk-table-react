@@ -25,7 +25,7 @@ const columns: StkTableColumn<any>[] = [
 
 <demo react="basic/multi-header/MultiHeader.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/basic/multi-header/MultiHeader.tsx"></demo>
 
-## Horizontal Virtual List(✨NEW)
+## Horizontal Virtual List
 With the help of AI, multi-level headers finally support horizontal virtual list!
 
 Configure `props.virtualX` to enable it.

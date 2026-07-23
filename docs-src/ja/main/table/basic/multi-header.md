@@ -25,7 +25,7 @@ const columns: StkTableColumn<any>[] = [
 
 <demo react="basic/multi-header/MultiHeader.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/basic/multi-header/MultiHeader.tsx"></demo>
 
-## 横方向仮想リスト(✨NEW)
+## 横方向仮想リスト
 AIの支援により、マルチレベルヘッダーがついに横方向仮想リストをサポートしました！
 
 `props.virtualX` を設定するだけです。

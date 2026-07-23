@@ -77,6 +77,9 @@ const CELL_RANGE_LEFT = 'cell-range-l';
 const CELL_RANGE_RIGHT = 'cell-range-r';
 const ROW_RANGE_SELECTED = 'row-range-selected';
 
+/** 空集合常量，避免重复创建 */
+const EMPTY_CELL_KEY_SET: Set<string> = new Set();
+
 /** 钳制值到指定范围内 */
 function clampNum(value: number, min: number, max: number): number {
     return Math.max(min, Math.min(value, max));
@@ -410,6 +413,15 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
         return headers.slice(-1)[0] || [];
     }, [version]);
 
+    /**
+     * 从 ref 读取最新的末级表头。
+     * 用于 setSorter/sortData 等回调，避免挂载阶段（如 defaultSort）闭包捕获到尚未填充的 tableHeaderLast。
+     */
+    const getTableHeaderLast = useCallback(() => {
+        const headers = tableHeadersForCalcRef.current;
+        return headers.slice(-1)[0] || [];
+    }, []);
+
     const tableHeaders = useMemo(() => tableHeadersRef.current, [version]);
 
     const isTreeData = useMemo(() => columns.some(col => col.type === 'tree-node'), [columns]);
@@ -648,12 +660,16 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
     const mergeCellsInfo = useMemo(() => {
         const hiddenCellMap = new Map<UniqKey, Set<UniqKey>>();
         const mergeSpanMap = new Map<string, { colspan?: number; rowspan?: number }>();
+        /** rowKey -> 覆盖该行的合并单元格(起始格)cellKey 集合，hover/active 该行时同步高亮对应 rowspan 单元格（key 统一为字符串，兼容数字 key） */
+        const hoverRowMap = new Map<string, Set<string>>();
+        /** 合并单元格 cellKey -> 起始格位置(rowKey, colKey)，用于定位对应 dom */
+        const mergeCellPosMap = new Map<string, { rowKey: UniqKey; colKey: UniqKey }>();
         const headers = tableHeaderLast;
         const hasMerge = headers.some(c => c.mergeCells);
-        if (!hasMerge) return { hiddenCellMap, mergeSpanMap };
+        if (!hasMerge) return { hiddenCellMap, mergeSpanMap, hoverRowMap, mergeCellPosMap };
 
         const colIndexCache = new Map<UniqKey, number>();
-        const hideCells = (rowKey: UniqKey, colKey: UniqKey, colspan: number, isSelfRow: boolean) => {
+        const hideCells = (rowKey: UniqKey, colKey: UniqKey, colspan: number, isSelfRow: boolean, mergeCellKey: string) => {
             let startIndex = colIndexCache.get(colKey);
             if (startIndex === void 0) {
                 startIndex = headers.findIndex(item => colKeyGen(item) === colKey);
@@ -665,8 +681,14 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                 hiddenSet = new Set();
                 hiddenCellMap.set(rowKey, hiddenSet);
             }
+            let hoverSet = hoverRowMap.get(String(rowKey));
+            if (!hoverSet) {
+                hoverSet = new Set();
+                hoverRowMap.set(String(rowKey), hoverSet);
+            }
             const endIndex = Math.min(startIndex + colspan, headers.length);
             for (let i = startIndex; i < endIndex; i++) {
+                hoverSet.add(mergeCellKey);
                 if (isSelfRow && i === startIndex) continue;
                 const nextCol = headers[i];
                 if (!nextCol) break;
@@ -686,16 +708,45 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                 if (colspan === 1 && rowspan === 1) continue;
                 const rowKey = rowKeyGen(row);
                 const colKey = colKeyGen(col);
+                const mergedCellKey = pureCellKeyGen(rowKey, colKey);
+                mergeCellPosMap.set(mergedCellKey, { rowKey, colKey });
                 for (let i = rowIndex; i < rowIndex + rowspan; i++) {
                     const targetRow = virtual_dataSourcePart[i];
                     if (!targetRow) break;
-                    hideCells(rowKeyGen(targetRow), colKey, colspan as number, i === rowIndex);
+                    hideCells(rowKeyGen(targetRow), colKey, colspan as number, i === rowIndex, mergedCellKey);
                 }
-                mergeSpanMap.set(pureCellKeyGen(rowKey, colKey), { colspan, rowspan });
+                mergeSpanMap.set(mergedCellKey, { colspan, rowspan });
             }
         }
-        return { hiddenCellMap, mergeSpanMap };
+        return { hiddenCellMap, mergeSpanMap, hoverRowMap, mergeCellPosMap };
     }, [virtual_dataSourcePart, tableHeaderLast, colKeyGen, rowKeyGen]);
+
+    /** 行激活时需要高亮的合并单元格集合（rowspan 覆盖当前激活行的起始格） */
+    const activeMergedCells =
+        rowActiveProp.enabled && currentRowKey != null
+            ? mergeCellsInfo.hoverRowMap.get(String(currentRowKey)) || EMPTY_CELL_KEY_SET
+            : EMPTY_CELL_KEY_SET;
+
+    // Merge cells: 统计每一行（全量数据）的最大 rowspan，写入 maxRowSpanRef。
+    // 供 updateVirtualScrollY 修正虚拟滚动渲染范围，保证滚动时合并单元格的起始行也被渲染，避免合并被截断导致展示异常。
+    useMemo(() => {
+        maxRowSpanRef.current.clear();
+        const headers = tableHeaderLast;
+        const hasMerge = headers.some(c => c.mergeCells);
+        if (!hasMerge) return;
+        for (let rowIndex = 0; rowIndex < dataSourceCopy.length; rowIndex++) {
+            const row = dataSourceCopy[rowIndex];
+            if (!row || row.__EXP_R__) continue;
+            let maxRowSpan = 1;
+            for (let colIndex = 0; colIndex < headers.length; colIndex++) {
+                const col = headers[colIndex];
+                if (!col.mergeCells) continue;
+                const { rowspan } = col.mergeCells({ row, col, rowIndex, colIndex }) || {};
+                if (rowspan && rowspan > maxRowSpan) maxRowSpan = rowspan;
+            }
+            if (maxRowSpan > 1) maxRowSpanRef.current.set(rowKeyGen(row), maxRowSpan);
+        }
+    }, [dataSourceCopy, tableHeaderLast, rowKeyGen]);
 
     // Fixed column position
     const getFixedColPosition = useMemo(() => {
@@ -890,7 +941,7 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
             let result = data.slice();
             for (let i = st.length - 1; i >= 0; i--) {
                 const state = st[i];
-                const col = tableHeaderLast.find(c => (state.key && colKeyGen(c) === state.key) || c.dataIndex === state.dataIndex);
+                const col = getTableHeaderLast().find(c => (state.key && colKeyGen(c) === state.key) || c.dataIndex === state.dataIndex);
                 if (col && state.order) {
                     const colSortConfig = { ...sc, ...col.sortConfig };
                     result = tableSort(col, state.order, result, colSortConfig);
@@ -898,7 +949,7 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
             }
             return result;
         },
-        [sortStates, sortConfig, tableHeaderLast, colKeyGen],
+        [sortStates, sortConfig, getTableHeaderLast, colKeyGen],
     );
 
     // Tree functions
@@ -1022,26 +1073,38 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
 
             // maxRowSpan correction
             if (maxRowSpanRef.current.size) {
+                const rawStartIndex = startIndex;
                 let correctedStartIndex = startIndex;
                 let correctedEndIndex = endIndex;
-                for (let i = 0; i < startIndex; i++) {
+                // 向前扩展：将“合并范围覆盖到渲染区间”的合并起始行也纳入渲染。
+                // 倒序遍历：因为纳入某行后 correctedStartIndex 会前移，可能使更前面的合并起始行也覆盖进来（重叠合并的级联场景）。
+                for (let i = startIndex - 1; i >= 0; i--) {
                     const row = dataSourceCopy[i];
                     if (!row) continue;
-                    const spanEndIndex = i + (maxRowSpanRef.current.get(rowKeyGen(row)) || 1);
-                    if (spanEndIndex > startIndex) {
+                    const span = maxRowSpanRef.current.get(rowKeyGen(row)) || 1;
+                    if (span <= 1) continue;
+                    const spanEndIndex = i + span;
+                    if (spanEndIndex > correctedStartIndex) {
                         correctedStartIndex = i;
-                        if (spanEndIndex > endIndex) correctedEndIndex = spanEndIndex;
-                        break;
+                        if (spanEndIndex > correctedEndIndex) correctedEndIndex = spanEndIndex;
                     }
                 }
-                for (let i = correctedStartIndex; i < endIndex; i++) {
+                // 向后扩展：保证渲染区间内起始的合并被完整渲染（correctedEndIndex 增长后继续检查新纳入的行）
+                for (let i = correctedStartIndex; i < correctedEndIndex; i++) {
                     const row = dataSourceCopy[i];
                     if (!row) continue;
                     const spanEndIndex = i + (maxRowSpanRef.current.get(rowKeyGen(row)) || 1);
-                    if (spanEndIndex > correctedEndIndex) correctedEndIndex = Math.max(spanEndIndex, correctedEndIndex);
+                    if (spanEndIndex > correctedEndIndex) correctedEndIndex = spanEndIndex;
                 }
                 startIndex = correctedStartIndex;
                 endIndex = correctedEndIndex;
+                // startIndex 被修正后，重算自动行高模式下的顶部偏移，保证 offsetTop 与修正后的 startIndex 一致
+                if ((autoRowHeight || hasExpandCol) && startIndex !== rawStartIndex) {
+                    autoRowHeightTop = 0;
+                    for (let i = 0; i < startIndex; i++) {
+                        autoRowHeightTop += getRowHeightFn(dataSourceCopy[i]);
+                    }
+                }
             }
 
             if (stripe && !isExperimentalScrollY && startIndex > 0 && startIndex % 2) {
@@ -1162,13 +1225,30 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                 const headerToBodyRowHeightCount = Math.floor(tableHeaderHeight / rh);
                 pageSize -= headerToBodyRowHeightCount;
             }
-            const maxScrollTop = Math.max(0, dataSourceCopy.length * rh + tableHeaderHeight - containerHeight);
+            // autoRowHeight/展开行模式下，行高以测量/预估为准，用 dataLength * rh 估算的总高会严重偏小，
+            // 导致有效的 scrollTop 被错误钳制（拖动滚动条后视口空白）。这里采用与 offsetTop/offsetBottom 相同的高度模型计算总内容高。
+            let totalContentHeight = dataSourceCopy.length * rh + tableHeaderHeight;
+            if (autoRowHeight || hasExpandCol) {
+                totalContentHeight = tableHeaderHeight;
+                for (let i = 0; i < dataSourceCopy.length; i++) totalContentHeight += getRowHeightFn(dataSourceCopy[i]);
+            }
+            const maxScrollTop = Math.max(0, totalContentHeight - containerHeight);
             if (scrollTop > maxScrollTop) scrollTop = maxScrollTop;
             Object.assign(virtualScrollRef.current, { containerHeight, pageSize, scrollHeight, rowHeight: rh });
             updateVirtualScrollY(scrollTop);
             setVersion(v => v + 1);
         },
-        [rowHeight, headless, tableHeaderHeight, dataSourceCopy, isExperimentalScrollY, updateVirtualScrollY],
+        [
+            rowHeight,
+            headless,
+            tableHeaderHeight,
+            dataSourceCopy,
+            isExperimentalScrollY,
+            updateVirtualScrollY,
+            autoRowHeight,
+            hasExpandCol,
+            getRowHeightFn,
+        ],
     );
 
     const initVirtualScrollX = useCallback(() => {
@@ -2210,10 +2290,19 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
             const existingIndex = sortStates.findIndex(s => s.key === colKeyVal || s.dataIndex === colKeyVal);
             let newOrder: Order;
 
+            const defaultSort = sc.defaultSort;
+
             if (existingIndex >= 0) {
                 const currentOrder = sortStates[existingIndex].order;
-                const currentIndex = SORT_SWITCH_ORDER.indexOf(currentOrder);
-                newOrder = SORT_SWITCH_ORDER[(currentIndex + 1) % 3];
+                if (currentOrder && defaultSort && (defaultSort.key === colKeyVal || defaultSort.dataIndex === col.dataIndex)) {
+                    // 点击的是默认排序列：仅在 desc/asc 之间切换，不会取消排序
+                    const defaultSwitchOrder = SORT_SWITCH_ORDER.filter(order => order !== null);
+                    const currentIndex = defaultSwitchOrder.indexOf(currentOrder);
+                    newOrder = defaultSwitchOrder[(currentIndex + 1) % defaultSwitchOrder.length];
+                } else {
+                    const currentIndex = SORT_SWITCH_ORDER.indexOf(currentOrder);
+                    newOrder = SORT_SWITCH_ORDER[(currentIndex + 1) % 3];
+                }
             } else {
                 newOrder = SORT_SWITCH_ORDER[1];
             }
@@ -2235,6 +2324,20 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                 }
             } else {
                 newStates = sortStates.filter(s => s.key !== colKeyVal && s.dataIndex !== colKeyVal);
+                if (defaultSort?.order) {
+                    // 取消排序后回退到默认排序列
+                    const defaultSortCol = tableHeaderLast.find(c => (defaultSort.key && colKeyGen(c) === defaultSort.key) || c.dataIndex === defaultSort.dataIndex);
+                    const defaultState: SortState<DT> = {
+                        key: defaultSort.key ?? defaultSortCol?.key,
+                        dataIndex: defaultSort.dataIndex,
+                        sortField: defaultSort.sortField ?? defaultSortCol?.sortField,
+                        sortType: defaultSort.sortType ?? defaultSortCol?.sortType,
+                        order: defaultSort.order,
+                    };
+                    const defaultKey = defaultState.key || defaultState.dataIndex;
+                    const filtered = newStates.filter(s => s.key !== defaultKey && s.dataIndex !== defaultKey);
+                    newStates = sc.multiSort ? [defaultState, ...filtered].slice(0, sc.multiSortLimit ?? 3) : [defaultState];
+                }
             }
             setSortStates(newStates);
 
@@ -2369,6 +2472,38 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
         [dataSourceCopy, tableHeaderLast, colKeyGen, onCellMouseover, onCellMouseenter],
     );
 
+    /** 当前 hover 高亮的合并单元格 cellKey 集合（不触发重渲染，直接操作 dom class） */
+    const hoverMergedCellsRef = useRef<Set<string>>(EMPTY_CELL_KEY_SET);
+
+    /**
+     * 更新 rowspan 合并单元格的 hover 高亮（对齐 stk-table-vue）
+     * hover 到被 rowspan 覆盖的行时，同步高亮对应的合并起始单元格
+     */
+    const updateHoverMergedCells = useCallback(
+        (rowKey: UniqKey | null | undefined) => {
+            const { hoverRowMap, mergeCellPosMap } = mergeCellsInfo;
+            const nextSet = (rowKey != null && hoverRowMap.get(String(rowKey))) || EMPTY_CELL_KEY_SET;
+            const prevSet = hoverMergedCellsRef.current;
+            if (prevSet === nextSet) return;
+            const findMergeTd = (cellKey: string) => {
+                const pos = mergeCellPosMap.get(cellKey);
+                if (!pos) return null;
+                const tr = trRefsMap.current.get(String(pos.rowKey));
+                return (tr?.querySelector(`td[data-col-key="${pos.colKey}"]`) as HTMLElement) || null;
+            };
+            for (const cellKey of prevSet) {
+                if (nextSet.has(cellKey)) continue;
+                findMergeTd(cellKey)?.classList.remove('cell-hover');
+            }
+            for (const cellKey of nextSet) {
+                if (prevSet.has(cellKey)) continue;
+                findMergeTd(cellKey)?.classList.add('cell-hover');
+            }
+            hoverMergedCellsRef.current = nextSet;
+        },
+        [mergeCellsInfo],
+    );
+
     const handleTbodyMouseOut = useCallback(
         (e: React.MouseEvent) => {
             const target = e.target as HTMLElement;
@@ -2385,9 +2520,10 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
             if (tr && (!related || !tr.contains(related))) {
                 currentHoverRowRef.current = null;
                 if (showTrHoverClass) setCurrentHoverRowKey(null);
+                if (rowHover) updateHoverMergedCells(null);
             }
         },
-        [dataSourceCopy, tableHeaderLast, colKeyGen, showTrHoverClass, onCellMouseleave],
+        [dataSourceCopy, tableHeaderLast, colKeyGen, showTrHoverClass, rowHover, updateHoverMergedCells, onCellMouseleave],
     );
 
     const handleCellMouseDown = useCallback(
@@ -2413,11 +2549,15 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
             const row = dataSourceCopy[rowIndex];
             if (currentHoverRowRef.current === row) return;
             currentHoverRowRef.current = row;
+            const rowKey = (tr as HTMLElement).dataset.rowKey || null;
             if (showTrHoverClass) {
-                setCurrentHoverRowKey((tr as HTMLElement).dataset.rowKey || null);
+                setCurrentHoverRowKey(rowKey);
+            }
+            if (rowHover) {
+                updateHoverMergedCells(rowKey);
             }
         },
-        [dataSourceCopy, showTrHoverClass],
+        [dataSourceCopy, showTrHoverClass, rowHover, updateHoverMergedCells],
     );
 
     // Expand row
@@ -2770,7 +2910,7 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
             const { silent = true, sort = true } = option;
             let newStates: SortState<DT>[] = [];
             if (order) {
-                const column = tableHeaderLast.find(it => colKeyGen(it) === colKeyVal);
+                const column = getTableHeaderLast().find(it => colKeyGen(it) === colKeyVal);
                 if (column) {
                     newStates = [
                         {
@@ -2795,7 +2935,7 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
             }
             return dataSourceCopy;
         },
-        [tableHeaderLast, colKeyGen, dataSource, sortRemote, sortData, isTreeData, flatTreeData, filterDataSource, dataSourceCopy],
+        [getTableHeaderLast, colKeyGen, dataSource, sortRemote, sortData, isTreeData, flatTreeData, filterDataSource, dataSourceCopy],
     );
 
     const resetSorter = useCallback(() => {
@@ -3346,6 +3486,9 @@ export const StkTable = forwardRef<StkTableRef<DT>, StkTableProps<DT>>((props, r
                                                 col.type === 'expand' && row.__EXP__ && colKeyGen(row.__EXP__) === ck ? 'expanded' : '',
                                                 row.__T_EXP__ && col.type === 'tree-node' ? 'tree-expanded' : '',
                                                 col.type === 'dragRow' ? 'drag-row-cell' : '',
+                                                // 合并单元格：hover/active 行时同步高亮对应的 rowspan 单元格（对齐 stk-table-vue）
+                                                col.mergeCells && hoverMergedCellsRef.current.has(cellKey) ? 'cell-hover' : '',
+                                                col.mergeCells && activeMergedCells.has(cellKey) ? 'cell-active' : '',
                                             ]
                                                 .filter(Boolean)
                                                 .join(' ');
