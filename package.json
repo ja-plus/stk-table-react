@@ -1,0 +1,89 @@
+{
+    "name": "stk-table-react",
+    "version": "1.0.0",
+    "description": "High performance realtime virtual table for React",
+    "main": "./lib/stk-table-react.js",
+    "types": "./lib/index.d.ts",
+    "homepage": "https://ja-plus.github.io/stk-table-react/",
+    "author": "japlus",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ja-plus/stk-table-react"
+    },
+    "bugs": {
+        "url": "https://github.com/ja-plus/stk-table-react/issues"
+    },
+    "packageManager": "pnpm@10.7.0",
+    "directories": {
+        "test": "test"
+    },
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "test": "vitest",
+        "lint": "eslint src --ext .ts,.tsx",
+        "docs:dev": "vitepress dev docs-src",
+        "docs:build": "vitepress build docs-src",
+        "docs:preview": "vitepress preview docs-src"
+    },
+    "keywords": [
+        "react",
+        "table",
+        "react-table",
+        "virtual table",
+        "virtual-scroll",
+        "data-table",
+        "react-component",
+        "grid",
+        "highlight",
+        "sticky",
+        "virtual",
+        "list"
+    ],
+    "files": [
+        "lib",
+        "src"
+    ],
+    "peerDependencies": {
+        "react": ">=16.8.0",
+        "react-dom": ">=16.8.0"
+    },
+    "devDependencies": {
+        "@testing-library/jest-dom": "^7.0.0",
+        "@testing-library/react": "^16.3.2",
+        "@testing-library/user-event": "^14.6.1",
+        "@types/mockjs": "^1.0.10",
+        "@types/node": "^22.18.10",
+        "@types/react": "^19.2.17",
+        "@types/react-dom": "^19.2.3",
+        "@typescript-eslint/eslint-plugin": "^7.7.0",
+        "@typescript-eslint/parser": "^7.7.0",
+        "@vitejs/plugin-react": "^6.0.3",
+        "eslint": "^8.57.0",
+        "eslint-config-prettier": "^9.1.0",
+        "eslint-plugin-prettier": "^5.1.3",
+        "eslint-plugin-react": "^7.37.5",
+        "eslint-plugin-react-hooks": "^5.2.0",
+        "jsdom": "^29.1.1",
+        "less": "^4.2.0",
+        "mockjs": "^1.1.0",
+        "postcss": "^8.4.47",
+        "postcss-discard-comments": "^6.0.2",
+        "postcss-preset-env": "^9.5.11",
+        "prettier": "^3.2.5",
+        "react": "^19.2.7",
+        "react-dom": "^19.2.7",
+        "typescript": "^5.8.3",
+        "vite": "^8.1.2",
+        "vite-plugin-banner": "^0.8.1",
+        "vite-plugin-dts": "3.9.1",
+        "vitepress": "^1.6.4",
+        "vitepress-demo-plugin": "^1.5.1",
+        "vitest": "^4.1.9",
+        "@chenglou/pretext": "^0.0.8",
+        "mitt": "^3.0.1",
+        "ja-contextmenu": "^1.11.0"
+    }
+}

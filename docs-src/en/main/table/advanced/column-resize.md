@@ -1,0 +1,58 @@
+# Column Resizable
+
+## Configuration
+* `props.colResizable` to enable column width adjustment.
+* `props.columns` needs to be updated via the `onUpdateColumns` callback. After adjusting column width, the value of `StkTableColumn['width']` will change directly.
+* `columns` needs to be stored with `useState` to support reactive updates.
+
+```js
+<StkTable
+    colResizable // [!code ++]
+    columns={columns}
+    onUpdateColumns={newCols => setColumns(newCols)} // [!code ++]
+/>
+```
+
+::: warning
+After enabling column width adjustment, columns will not fill the container by default. The table's `width` will be set to `fit-content`. If there are any issues, please check if `props.width` is passed in.
+:::
+
+<demo react="advanced/column-resize/ColResizable.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/advanced/column-resize/ColResizable.tsx"></demo>
+
+
+## Change Column Width via Event
+```ts
+/**
+ * Triggered when column width changes
+ *
+ *  ```(col: StkTableColumn<DT>)```
+ */
+onColResize?: (col: StkTableColumn<DT>) => void;
+```
+
+This way, you don't need to update via the `onUpdateColumns` callback; you can manually update the value of `StkTableColumn['width']`.
+
+## Hack to Make Columns Fill Container
+If you want columns to fill the container, you can manually set `.stk-table-main` to `flex: 1`, so the table will fill the container.
+
+Then replace `width` with `minWidth` for a column, and this column will automatically occupy the remaining width, while other columns remain at their set widths.
+
+Disable width adjustment for the last column via `props.colResizable.disabled`.
+
+The demo below sets minWidth for the last column.
+<demo react="advanced/column-resize/ColResizableFullHack.tsx" github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/advanced/column-resize/ColResizableFullHack.tsx"></demo>
+
+
+## API
+### props.colResizable:
+| type | Description |
+| --- | --- | 
+| boolean | Whether to enable column width adjustment |
+| ColResizableConfig | Configuration |
+
+### ColResizableConfig
+| Property | Type | Default | Description |
+| --- | --- | ---- | --- |
+| disabled | `(col:StkTableColumn) => boolean` | -- | Whether to enable column width adjustment for specific columns |
+
+

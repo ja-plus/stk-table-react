@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StkTable React Demo</title>
+    <style>
+        /* 让 StkTable 容器填满父级固定高度，虚拟滚动才能正确计算视口 */
+        .demo-box {
+            border: 1px solid #ccc;
+            margin-bottom: 8px;
+        }
+        .demo-box > .stk-table {
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+</body>
+</html>

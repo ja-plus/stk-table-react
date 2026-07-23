@@ -1,0 +1,42 @@
+{
+    "compilerOptions": {
+        "target": "esnext",
+        "module": "esnext",
+        "strict": true,
+        "jsx": "react-jsx",
+        "jsxImportSource": "react",
+        "allowJs": true,
+        "sourceMap": true,
+        "checkJs": false,
+        "baseUrl": ".",
+        "moduleResolution": "bundler",
+        "resolveJsonModule": true,
+        "skipLibCheck": true,
+        "allowSyntheticDefaultImports": true,
+        "erasableSyntaxOnly": true,
+        "lib": [
+            "ESNext",
+            "DOM",
+            "DOM.Iterable",
+            "ScriptHost"
+        ],
+        "paths": {
+            "@/*": [
+                "./src/*"
+            ]
+        },
+        "outDir": "./dist"
+    },
+    "include": [
+        "./src/**/*.js",
+        "./src/**/*.ts",
+        "./src/**/*.tsx",
+        "./src/**/*.d.ts",
+        "./test/**/*.js",
+        "./test/**/*.ts",
+        "./test/**/*.tsx"
+    ],
+    "exclude": [
+        "node_modules"
+    ]
+}

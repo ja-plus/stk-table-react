@@ -1,0 +1,43 @@
+---
+# https://vitepress.dev/reference/default-theme-home-page
+layout: home
+
+hero:
+  name: "Stk Table React"
+  text: "High Performance Virtual Table"
+  tagline: Real-time big data, why use canvas? Smooth experience is here!
+  image:
+    src: /assets/logo.svg
+    alt: Stk Table React
+  actions:
+    - theme: brand
+      text: Get Started
+      link: /en/main/start/start
+    - theme: alt
+      text: Demos
+      link: /en/demos/huge-data
+    - theme: alt
+      text: GitHub⭐
+      link: https://github.com/ja-plus/stk-table-react
+
+features:
+  - icon: 💡
+    title: Lightweight & Easy to Use
+    details: Fixed headers and columns based on position:sticky, making virtual list height control more convenient.
+  - icon: ⚡️
+    title: High Performance
+    details: Supports horizontal, vertical, and variable height virtual lists. Focused on real-time data tables, quote tables, and dynamic tables.
+  - icon: 🔩
+    title: Flexible
+    details: DOM-based, configurable custom cells, no more bloated slots.
+  - icon: 🛠️
+    title: Row/Cell Highlighting
+    details: Encapsulates methods for highlighting rows and cells. Used for data update notifications.
+  - icon: 🔑
+    title: Fully Typed API
+    details: Flexible API with complete TypeScript types.
+  - icon:
+      src: /assets/react-logo.svg
+    title: React 19 Support
+    details: React + TS source code, built with React Hooks, easy to integrate into React projects.
+---

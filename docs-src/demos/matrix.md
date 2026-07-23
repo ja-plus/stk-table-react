@@ -1,0 +1,14 @@
+# 矩阵
+<demo react="demos/Matrix/index.tsx"  github="https://github.com/ja-plus/stk-table-react/tree/master/docs-demo/demos/Matrix/index.tsx"></demo>
+
+::: tip
+取消首列悬浮事件使用css `pointer-event:none`控制。
+:::
+
+## 注意点
+table 必须设置高度，否则 customCell 中的根元素设置height无效。
+```css
+:deep(.stk-table .stk-table-main) {
+    height: 100%; // 重要，这里必须加高度
+}
+```

@@ -1,0 +1,29 @@
+:root {
+    /* --vp-home-hero-name-color: rgb(0, 47,167) ; */
+    --vp-home-hero-name-color: transparent;
+    --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #61dafb, #f09797);
+    --vp-home-hero-image-background-image: -webkit-linear-gradient(120deg, rgba(97, 218, 251,0.5) 50%, rgba(253, 126, 126, 0.5) 50%, rgba(253, 126, 126, 0.5));
+    --vp-home-hero-image-filter: blur(72px);
+}
+
+.no-aside-padding .VPContent.has-sidebar {
+    padding-right: 16px;
+}
+
+.btn:hover {
+    color: #1890ff;
+}
+
+.btn+.btn {
+    margin-left: 10px;
+}
+
+.input {
+    border: 1px solid var(--vp-c-border);
+    border-radius: 4px;
+    padding: 0 6px;
+}
+
+.input:focus {
+    border: 1px solid var(--vp-c-brand);
+}
