@@ -2,14 +2,14 @@
   <!-- 6个方块蜂窝环绕布局，各自中心不变、边长放大至37.8，fill透明，圆角 -->
   <g fill="none" stroke="#61dafb" stroke-width="6.7">
     <!-- 上排 -->
-    <rect x="-44.9" y="-70.9" width="37.8" height="37.8" rx="4.5"/>
-    <rect x="7.1" y="-70.9" width="37.8" height="37.8" rx="4.5"/>
+    <rect x="-44.9" y="-70.9" width="37.8" height="37.8" rx="8"/>
+    <rect x="7.1" y="-70.9" width="37.8" height="37.8" rx="8"/>
     <!-- 左右外凸 -->
-    <rect x="-70.9" y="-18.9" width="37.8" height="37.8" rx="4.5"/>
-    <rect x="33.1" y="-18.9" width="37.8" height="37.8" rx="4.5"/>
+    <rect x="-70.9" y="-18.9" width="37.8" height="37.8" rx="8"/>
+    <rect x="33.1" y="-18.9" width="37.8" height="37.8" rx="8"/>
     <!-- 下排 -->
-    <rect x="-44.9" y="33.1" width="37.8" height="37.8" rx="4.5"/>
-    <rect x="7.1" y="33.1" width="37.8" height="37.8" rx="4.5"/>
+    <rect x="-44.9" y="33.1" width="37.8" height="37.8" rx="8"/>
+    <rect x="7.1" y="33.1" width="37.8" height="37.8" rx="8"/>
   </g>
   <!-- 中心圆: 直径42 -->
   <circle cx="0" cy="0" r="21" fill="#61dafb"/>
