@@ -4,6 +4,41 @@
     --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #61dafb, #f09797);
     --vp-home-hero-image-background-image: -webkit-linear-gradient(120deg, rgba(97, 218, 251,0.5) 50%, rgba(253, 126, 126, 0.5) 50%, rgba(253, 126, 126, 0.5));
     --vp-home-hero-image-filter: blur(72px);
+
+    /* React 蓝 (#61DAFB) 主题色 */
+    --vp-c-brand-1: #149eca;
+    --vp-c-brand-2: #38b6e8;
+    --vp-c-brand-3: #61dafb;
+    --vp-c-brand-soft: rgba(97, 218, 251, 0.14);
+
+    /* brand 按钮：背景为浅蓝，使用深色文字保证对比度 */
+    --vp-button-brand-text: #16323a;
+    --vp-button-brand-bg: #61dafb;
+    --vp-button-brand-hover-text: #16323a;
+    --vp-button-brand-hover-bg: #7ee2fd;
+    --vp-button-brand-active-text: #16323a;
+    --vp-button-brand-active-bg: #45c6f2;
+}
+
+.dark {
+    --vp-c-brand-1: #61dafb;
+    --vp-c-brand-2: #45c6f2;
+    --vp-c-brand-3: #61dafb;
+    --vp-c-brand-soft: rgba(97, 218, 251, 0.16);
+}
+
+/* VitePress 的 hero action 原生不支持 icon 属性，这里通过 CSS 在首页“Vue版”按钮文字前注入 Vue logo */
+.VPHero .actions a[href*='stk-table-vue']::before {
+    content: '';
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    margin-right: 6px;
+    vertical-align: -3px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 261.76 226.69'%3E%3Cpath d='M161.096.001l-30.225 52.351L100.647.001H0l130.871 226.688L261.76.001z' fill='%2341b883'/%3E%3Cpath d='M161.096.001l-30.225 52.351L100.647.001H52.346l78.525 136.01L209.398.001z' fill='%2334495e'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
 }
 
 .no-aside-padding .VPContent.has-sidebar {

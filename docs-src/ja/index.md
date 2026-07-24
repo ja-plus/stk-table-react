@@ -19,6 +19,9 @@ hero:
     - theme: alt
       text: GitHub⭐
       link: https://github.com/ja-plus/stk-table-react
+    - theme: alt
+      text: Vue版
+      link: https://ja-plus.github.io/stk-table-vue/
 
 features:
   - icon: 💡

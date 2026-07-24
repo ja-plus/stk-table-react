@@ -44,6 +44,7 @@ export const zhConfig = defineConfig({
             { text: '文档', link: '/main/start/start' },
             { text: '示例', link: '/demos/huge-data' },
             { text: '赞助', link: '/main/other/sponsor' },
+            { text: 'Vue版', link: 'https://ja-plus.github.io/stk-table-vue/' },
         ],
         sidebar: {
             '/main': {
