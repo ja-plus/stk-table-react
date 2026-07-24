@@ -1,6 +1,24 @@
-# stk-table-react
+<p align="center">
+    <a href="https://ja-plus.github.io/stk-table-react/">
+        <img src="./docs-src/public/assets/logo.svg" width="152">
+    </a>
+    <h3 align='center'>Stk Table React</h3>
+    <p align="center">
+        <a href="https://www.npmjs.com/package/stk-table-react"><img src="https://img.shields.io/npm/v/stk-table-react"></a>
+        <a href="https://www.npmjs.com/package/stk-table-react"><img src="https://img.shields.io/npm/dw/stk-table-react"></a>
+        <a href="https://github.com/ja-plus/stk-table-react/stargazers"><img src="https://img.shields.io/github/stars/ja-plus/stk-table-react.svg"></a>
+        <a href="https://raw.githubusercontent.com/ja-plus/stk-table-react/master/LICENSE"><img src="https://img.shields.io/npm/l/stk-table-react"></a>
+        <a href="https://github.com/ja-plus/stk-table-react"><img src="https://img.shields.io/npm/types/stk-table-react"></a>
+    </p>
+</p>
 
 High performance realtime virtual table for React.
+
+Rewrote [stk-table-vue](https://github.com/ja-plus/stk-table-vue) using React
+
+## Documentation
+### [Stk Table React Official](https://ja-plus.github.io/stk-table-react/)
+### [Stk Table Vue Official](https://ja-plus.github.io/stk-table-vue/)
 
 ## Features
 
